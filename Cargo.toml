@@ -1,0 +1,22 @@
+[package]
+name = "o2d"
+version = "2.0.0"
+authors = [
+    "Carlos A. Rueda <carueda@mbari.org>",
+]
+license = "MIT OR Apache-2.0"
+edition = "2021"
+
+[dependencies]
+anstyle = "1.0.1" # for coloring clap help
+clap = { version = "4.3.10", features = ["derive", "unstable-styles"] }
+dotenv = "0.15.0"
+env_logger = "0.10.0"
+humantime-serde = "1.1.1"
+log = "0.4"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0.64"
+toml = "0.7.5"
+
+[dev-dependencies]
+pretty_assertions = "1.4.0"

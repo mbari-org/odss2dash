@@ -1,0 +1,31 @@
+# This file defines the configuration for odss2dash.
+# Use a local `.env` file to capture environment variables
+# for any API Keys, and reference them below.
+
+## To get platform and position information:
+odssApi = "https://odss.mbari.org/odss"
+
+## External URL of the odss2dash service API
+## (basically for the swagger apidoc page):
+externalUrl = "https://okeanids.mbari.org/odss2dash/api"
+
+## Server port to listen for requests:
+port = 3033
+
+## Interval to perform the dispatch:
+pollPeriod = "30 seconds"
+
+## Default limit for positions request against ODSS API:
+defaultLastNumberOfFixes = 5
+
+## Target TethysDash instances:
+## (use a simple, alphanumeric string for each `name` entry)
+[[tethysdashes]]
+name = "okeanids"
+api = "https://okeanids.mbari.org/TethysDash/api"
+apiKey = "$OKEANIDS_APIKEY"
+
+[[tethysdashes]]
+name = "tethystest"
+api = "http://tethystest.shore.mbari.org:8080/TethysDash/api"
+apiKey = "$TETHYSTEST_APIKEY"
