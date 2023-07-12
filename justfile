@@ -65,3 +65,15 @@ run *args='':
 # Check configuration
 check-config *args='':
   cargo run -- check-config {{args}}
+
+# Get all platforms
+get-platforms *args:
+  cargo run -- get-platforms {{args}}
+
+# Get platform information
+get-platform platform='5d5b2ea653a65f9ec656d872':
+  cargo run -- get-platform {{platform}}
+
+# Get platform positions
+get-positions platform='54065b5560d0e168c88d4043':
+  cargo run -- get-positions {{platform}}

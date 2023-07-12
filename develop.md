@@ -7,7 +7,7 @@ This repo is intended to capture such reimplementation in a more organized way.
 Overall plan:
 
 - [x] Initial version with configuration handling
-- [ ] Direct requests to the Tracking DB
+- [x] Direct requests to the Tracking DB
 - [ ] Dispatch of position polling and notification to configured TethysDash instances
 - [ ] The service with REST API and OpenAPI documentation
 - [ ] Testing
