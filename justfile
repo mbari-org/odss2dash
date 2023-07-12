@@ -77,3 +77,11 @@ get-platform platform='5d5b2ea653a65f9ec656d872':
 # Get platform positions
 get-positions platform='54065b5560d0e168c88d4043':
   cargo run -- get-positions {{platform}}
+
+# Add platforms to be dispatched
+add-dispatched *args='':
+  cargo run -- add-dispatched {{args}}
+
+# Run dispatch
+dispatch *args='':
+  cargo run -- dispatch {{args}}

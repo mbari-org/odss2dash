@@ -1,7 +1,16 @@
 mod config;
+mod dispatched_info;
+mod dispatcher;
+mod platform_info;
+mod publisher;
+mod tethysdash_client;
 mod trackdb_client;
 
 use clap::{Parser, Subcommand};
+
+use crate::dispatched_info::DispatchedInfo;
+use crate::dispatcher::Dispatcher;
+use crate::platform_info::PlatformInfo;
 
 /// The odss2dash CLI
 #[derive(Parser)]
@@ -39,6 +48,21 @@ enum Commands {
         /// The platform ID
         platform_id: String,
     },
+
+    /// Add platforms to be dispatched
+    #[command(arg_required_else_help = true)]
+    AddDispatched {
+        /// Platform IDs to dispatch
+        platform_ids: Vec<String>,
+    },
+
+    /// Launch dispatch according to configuration
+    #[command()]
+    Dispatch {
+        /// Run dispatch only once
+        #[arg(long)]
+        once: bool,
+    },
 }
 
 fn main() {
@@ -57,6 +81,12 @@ fn main() {
         }
         Commands::GetPositions { platform_id } => {
             get_positions(&platform_id);
+        }
+        Commands::AddDispatched { platform_ids } => {
+            add_dispatched(platform_ids);
+        }
+        Commands::Dispatch { once } => {
+            dispatch(once);
         }
     }
 }
@@ -85,6 +115,50 @@ fn get_positions(platform_id: &str) {
         println!("{}", serde_json::to_string_pretty(&pos_res).unwrap());
     } else {
         eprintln!("No platform positions by id: {platform_id}");
+    }
+}
+
+fn add_dispatched(platform_ids: Vec<String>) {
+    DispatchedInfo::new().add_platform_ids(platform_ids);
+}
+
+fn create_platform_info() -> PlatformInfo {
+    /// Initialize cache with platforms from TrackingDB/ODSS:
+    fn init_platform_info(platform_info: &mut PlatformInfo) {
+        let platforms_res = trackdb_client::get_platforms();
+        if platforms_res.is_empty() {
+            eprintln!("warning: no platforms returned from TrackingDB/ODSS");
+        } else {
+            println!("{} platforms found in TrackingDB/ODSS", platforms_res.len());
+            platform_info.set_platforms(platforms_res);
+        }
+    }
+
+    let mut platform_info = PlatformInfo::default();
+    init_platform_info(&mut platform_info);
+    platform_info
+}
+
+fn create_dispatched_info() -> DispatchedInfo {
+    DispatchedInfo::new()
+}
+
+fn create_dispatcher(platform_info: PlatformInfo, dispatched_info: DispatchedInfo) -> Dispatcher {
+    Dispatcher::new(
+        tethysdash_client::post_xevent,
+        platform_info,
+        dispatched_info,
+    )
+}
+
+fn dispatch(once: bool) {
+    let platform_info = create_platform_info();
+    let dispatched_info = create_dispatched_info();
+    let dispatcher = create_dispatcher(platform_info, dispatched_info);
+    if once {
+        dispatcher.launch_one_dispatch();
+    } else {
+        dispatcher.launch_dispatch();
     }
 }
 
