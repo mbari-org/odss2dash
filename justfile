@@ -36,6 +36,10 @@ build *args='--release':
 install: build
   cargo install --path .
 
+# Clean
+clean:
+  cargo clean
+
 # (cargo install cargo-modules)
 # Show module tree
 tree:
@@ -85,3 +89,45 @@ add-dispatched *args='':
 # Run dispatch
 dispatch *args='':
   cargo run -- dispatch {{args}}
+
+# Run server
+serve *args:
+  cargo run -- serve {{args}}
+
+#############################################
+# With local server running:
+
+# Get platforms via REST API against TrackingDB
+rest-trackdb-get-platforms:
+  curlie get http://localhost:3033/trackdb/platforms
+
+# Get platform information via REST API against TrackingDB
+rest-trackdb-get-platform platform='5d5b2ea653a65f9ec656d872':
+  curlie get http://localhost:3033/trackdb/platforms/{{platform}}
+
+# Get platform positions via REST API against TrackingDB
+rest-trackdb-get-positions platform='54065b5560d0e168c88d4043' lastNumberOfFixes='2':
+  curlie get http://localhost:3033/trackdb/platforms/{{platform}}/positions?lastNumberOfFixes={{lastNumberOfFixes}}
+
+# Get dispatched platforms via REST API
+rest-dispatched-get-platforms:
+  curlie get http://localhost:3033/dispatched/platforms
+
+# Get dispatched platform information via REST API
+rest-dispatched-get-platform platform='5d5b2ea653a65f9ec656d872':
+  curlie get http://localhost:3033/dispatched/platforms/{{platform}}
+
+# Add dispatched platform via REST API
+rest-dispatched-add-platforms platformIds='["001", "002", "003"]':
+  curlie post http://localhost:3033/dispatched/platforms \
+    platformIds:='{{platformIds}}'
+
+# Delete dispatched platform via REST API
+rest-dispatched-delete-platform platform:
+  curlie delete http://localhost:3033/dispatched/platforms/{{platform}}
+
+# Delete dispatched platforms via REST API
+rest-dispatched-delete-platforms:
+  just rest-dispatched-delete-platform 002
+  just rest-dispatched-delete-platform 001
+  just rest-dispatched-delete-platform 003

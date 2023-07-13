@@ -14,10 +14,18 @@ pub fn load_config() -> &'static Config {
     CONFIG.get_or_init(|| parse_config_file(CONFIG_FILENAME))
 }
 
+// allows directly setting the configuration for testing
+#[cfg(test)]
+pub fn set_config(config: Config) {
+    CONFIG
+        .set(config)
+        .unwrap_or_else(|_| panic!("Configuration already set!"));
+}
+
 pub fn get_config() -> &'static Config {
     CONFIG
         .get()
-        .unwrap_or_else(|| panic!("Configuration not loaded. Call load_config() first."))
+        .unwrap_or_else(|| panic!("Configuration not set. Call load_config() first."))
 }
 
 /// Configuration for the odss2dash service. See `odds2dash.toml`.
@@ -139,7 +147,7 @@ mod tests {
         std::env::set_var("OKEANIDS_APIKEY", "eyFoo");
         std::env::set_var("TETHYSTEST_APIKEY", "eyBaz");
 
-        let config = load_config();
+        let config = parse_config_file(CONFIG_FILENAME);
 
         assert_eq!(config.odss_api, "https://odss.mbari.org/odss");
         assert_eq!(

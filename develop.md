@@ -9,6 +9,6 @@ Overall plan:
 - [x] Initial version with configuration handling
 - [x] Direct requests to the Tracking DB
 - [x] Dispatch of position polling and notification to configured TethysDash instances
-- [ ] The service with REST API and OpenAPI documentation
+- [x] Service with REST API and OpenAPI documentation
 - [ ] Testing
 - [ ] Conclusion

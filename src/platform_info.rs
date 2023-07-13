@@ -17,11 +17,7 @@ impl PlatformInfo {
         self.info = platforms.into_iter().map(|p| (p._id.clone(), p)).collect();
     }
 
-    pub fn _is_empty(&self) -> bool {
-        self.info.is_empty()
-    }
-
-    pub fn _get_platforms(&self) -> Vec<PlatformRes> {
+    pub fn get_platforms(&self) -> Vec<PlatformRes> {
         self.info.values().cloned().collect()
     }
 
@@ -29,7 +25,7 @@ impl PlatformInfo {
         self.info.get(platform_id).cloned()
     }
 
-    pub fn _update_platform(&mut self, platform_res: &PlatformRes) {
+    pub fn update_platform(&mut self, platform_res: &PlatformRes) {
         self.info
             .insert(platform_res._id.clone(), platform_res.clone());
     }

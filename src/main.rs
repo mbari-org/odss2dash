@@ -3,14 +3,19 @@ mod dispatched_info;
 mod dispatcher;
 mod platform_info;
 mod publisher;
+mod server;
 mod tethysdash_client;
 mod trackdb_client;
-
 use clap::{Parser, Subcommand};
+use std::{
+    sync::{Arc, Mutex},
+    thread,
+};
 
 use crate::dispatched_info::DispatchedInfo;
 use crate::dispatcher::Dispatcher;
 use crate::platform_info::PlatformInfo;
+use crate::tethysdash_client::post_xevent;
 
 /// The odss2dash CLI
 #[derive(Parser)]
@@ -18,7 +23,10 @@ use crate::platform_info::PlatformInfo;
     version,
     name = "odss2dash",
     about = "odss2dash service",
-    styles = cli_styles()
+    long_about = "odss2dash:
+     The central function of this program is a service that relays
+     platform positions from the TrackingDB/ODSS to TethysDash.",
+    styles=cli_styles()
 )]
 struct Cli {
     #[command(subcommand)]
@@ -63,6 +71,14 @@ enum Commands {
         #[arg(long)]
         once: bool,
     },
+
+    /// Launch service
+    #[command()]
+    Serve {
+        /// Only run the server, not the dispatcher
+        #[arg(long)]
+        no_dispatch: bool,
+    },
 }
 
 fn main() {
@@ -87,6 +103,9 @@ fn main() {
         }
         Commands::Dispatch { once } => {
             dispatch(once);
+        }
+        Commands::Serve { no_dispatch } => {
+            serve(no_dispatch);
         }
     }
 }
@@ -122,33 +141,32 @@ fn add_dispatched(platform_ids: Vec<String>) {
     DispatchedInfo::new().add_platform_ids(platform_ids);
 }
 
-fn create_platform_info() -> PlatformInfo {
+fn create_platform_info() -> Arc<Mutex<PlatformInfo>> {
     /// Initialize cache with platforms from TrackingDB/ODSS:
-    fn init_platform_info(platform_info: &mut PlatformInfo) {
+    fn init_platform_info(platform_info: &Arc<Mutex<PlatformInfo>>) {
         let platforms_res = trackdb_client::get_platforms();
         if platforms_res.is_empty() {
             eprintln!("warning: no platforms returned from TrackingDB/ODSS");
         } else {
             println!("{} platforms found in TrackingDB/ODSS", platforms_res.len());
-            platform_info.set_platforms(platforms_res);
+            platform_info.lock().unwrap().set_platforms(platforms_res);
         }
     }
 
-    let mut platform_info = PlatformInfo::default();
-    init_platform_info(&mut platform_info);
+    let platform_info = Arc::new(Mutex::new(PlatformInfo::default()));
+    init_platform_info(&platform_info);
     platform_info
 }
 
-fn create_dispatched_info() -> DispatchedInfo {
-    DispatchedInfo::new()
+fn create_dispatched_info() -> Arc<Mutex<DispatchedInfo>> {
+    Arc::new(Mutex::new(DispatchedInfo::new()))
 }
 
-fn create_dispatcher(platform_info: PlatformInfo, dispatched_info: DispatchedInfo) -> Dispatcher {
-    Dispatcher::new(
-        tethysdash_client::post_xevent,
-        platform_info,
-        dispatched_info,
-    )
+fn create_dispatcher(
+    platform_info: Arc<Mutex<PlatformInfo>>,
+    dispatched_info: Arc<Mutex<DispatchedInfo>>,
+) -> Dispatcher {
+    Dispatcher::new(post_xevent, platform_info, dispatched_info)
 }
 
 fn dispatch(once: bool) {
@@ -159,6 +177,25 @@ fn dispatch(once: bool) {
         dispatcher.launch_one_dispatch();
     } else {
         dispatcher.launch_dispatch();
+    }
+}
+
+fn serve(no_dispatch: bool) {
+    let platform_info = create_platform_info();
+    let dispatched_info = create_dispatched_info();
+
+    let dispatcher_handle = if no_dispatch {
+        None
+    } else {
+        let platform_info = Arc::clone(&platform_info);
+        let dispatched_info = Arc::clone(&dispatched_info);
+        Some(thread::spawn(move || {
+            create_dispatcher(platform_info, dispatched_info).launch_dispatch();
+        }))
+    };
+    server::launch_server(platform_info, dispatched_info);
+    if let Some(dispatcher_handle) = dispatcher_handle {
+        dispatcher_handle.join().unwrap();
     }
 }
 

@@ -3,8 +3,9 @@ use crate::config;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::Duration;
+use utoipa::ToSchema;
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct PlatformRes {
     #[serde(rename(deserialize = "_id"))]
@@ -92,7 +93,7 @@ pub fn get_platform(platform_id: &str) -> Option<PlatformRes> {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct PositionsResponse {
     pub platform_id: String,
@@ -100,7 +101,7 @@ pub struct PositionsResponse {
     pub positions: Vec<Position>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct Position {
     pub time_ms: u64,

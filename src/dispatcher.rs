@@ -9,6 +9,7 @@ use std::collections::BTreeMap;
 use std::fs::File;
 use std::io::Write;
 use std::path::Path;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 type PlatformId = String;
@@ -19,8 +20,8 @@ type ReportedMap = BTreeMap<PlatformId, LastTsReported>;
 pub struct Dispatcher {
     poll_period: Duration,
     publisher: Publisher,
-    platform_info: PlatformInfo,
-    dispatched_info: DispatchedInfo,
+    platform_info: Arc<Mutex<PlatformInfo>>,
+    dispatched_info: Arc<Mutex<DispatchedInfo>>,
 }
 
 /// File that keeps track of last notified position timestamps.
@@ -29,8 +30,8 @@ const REPORTED_PATH: &str = "./reported.json";
 impl Dispatcher {
     pub fn new(
         post_xevent: PostXEventFn,
-        platform_info: PlatformInfo,
-        dispatched_info: DispatchedInfo,
+        platform_info: Arc<Mutex<PlatformInfo>>,
+        dispatched_info: Arc<Mutex<DispatchedInfo>>,
     ) -> Self {
         let config = config::get_config();
         Self {
@@ -63,7 +64,8 @@ impl Dispatcher {
     }
 
     fn dispatch_one(&self) -> usize {
-        let dispatched_info = &self.dispatched_info;
+        let dispatched_info = self.dispatched_info.lock().unwrap();
+
         println!(
             "\nDispatching any new positions for {} platforms",
             dispatched_info.get_num_platforms()
@@ -72,10 +74,10 @@ impl Dispatcher {
         let mut num_dispatched = 0;
         let mut reported_map = load_reported();
         for platform_id in &dispatched_info.get_platform_ids() {
-            let platform_info = &self.platform_info;
-            let platform_res = platform_info.get_platform(platform_id);
+            let platform_info = self.platform_info.lock().unwrap();
+            let platform_res = &platform_info.get_platform(platform_id);
             if let Some(platform_res) = platform_res {
-                num_dispatched += self.dispatch_platform(&mut reported_map, &platform_res);
+                num_dispatched += self.dispatch_platform(&mut reported_map, platform_res);
             } else {
                 eprintln!("No platform by id: {platform_id}");
             }

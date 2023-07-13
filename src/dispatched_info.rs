@@ -31,8 +31,18 @@ impl DispatchedInfo {
         self.platform_ids.clone()
     }
 
-    pub fn _is_dispatched_platform(&self, platform_id: &str) -> bool {
+    pub fn is_dispatched_platform(&self, platform_id: &str) -> bool {
         self.platform_ids.contains(&platform_id.to_string())
+    }
+
+    pub fn add_platform_id(&mut self, platform_id: &PlatformId) -> bool {
+        if self.platform_ids.contains(platform_id) {
+            return false;
+        }
+        self.platform_ids.push(platform_id.clone());
+        self.platform_ids.sort();
+        self.save();
+        true
     }
 
     pub fn add_platform_ids(&mut self, platform_ids: Vec<PlatformId>) -> Vec<PlatformId> {
@@ -48,7 +58,7 @@ impl DispatchedInfo {
         result
     }
 
-    pub fn _delete_platform_id(&mut self, platform_id: &str) -> Option<PlatformId> {
+    pub fn delete_platform_id(&mut self, platform_id: &str) -> Option<PlatformId> {
         let result = if self.platform_ids.contains(&platform_id.to_string()) {
             self.platform_ids.retain(|x| x != platform_id);
             Some(platform_id.to_string())
