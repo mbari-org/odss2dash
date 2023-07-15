@@ -10,6 +10,7 @@ use axum::{Router, Server};
 use hyper::Error;
 use std::net::{Ipv4Addr, SocketAddr};
 use std::sync::{Arc, Mutex};
+use tokio_shutdown::Shutdown;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
@@ -78,10 +79,16 @@ async fn launch(
         .merge(trackdb_router)
         .merge(swagger_ui_router);
 
+    let shutdown = Shutdown::new().unwrap();
+
     let address = SocketAddr::from((Ipv4Addr::UNSPECIFIED, config.port));
     println!(
         "Listening on {}  (apidoc: http://localhost:{}{} -> external: {})",
         address, config.port, apidoc_path, config.external_url
     );
-    Server::bind(&address).serve(app.into_make_service()).await
+    let server = Server::bind(&address).serve(app.into_make_service());
+
+    server.with_graceful_shutdown(shutdown.handle()).await?;
+
+    Ok(())
 }
