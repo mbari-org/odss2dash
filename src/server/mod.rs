@@ -9,7 +9,7 @@ use crate::trackdb_client;
 use axum::{Router, Server};
 use hyper::Error;
 use std::net::{Ipv4Addr, SocketAddr};
-use std::sync::{Arc, Mutex};
+use std::sync::{mpsc, Arc, Mutex};
 use tokio_shutdown::Shutdown;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
@@ -17,8 +17,9 @@ use utoipa_swagger_ui::SwaggerUi;
 pub fn launch_server(
     platform_info: Arc<Mutex<PlatformInfo>>,
     dispatched_info: Arc<Mutex<DispatchedInfo>>,
+    done_sender: Option<mpsc::Sender<()>>,
 ) {
-    match launch(platform_info, dispatched_info) {
+    match launch(platform_info, dispatched_info, done_sender) {
         Ok(()) => (),
         Err(e) => eprintln!("error launching server: {e}"),
     }
@@ -56,6 +57,7 @@ struct ApiDoc;
 async fn launch(
     platform_info: Arc<Mutex<PlatformInfo>>,
     dispatched_info: Arc<Mutex<DispatchedInfo>>,
+    done_sender: Option<mpsc::Sender<()>>,
 ) -> Result<(), Error> {
     let config = config::get_config();
     let mut doc = ApiDoc::openapi();
@@ -89,6 +91,10 @@ async fn launch(
     let server = Server::bind(&address).serve(app.into_make_service());
 
     server.with_graceful_shutdown(shutdown.handle()).await?;
+
+    if let Some(done_sender) = done_sender {
+        done_sender.send(()).expect("error sending done message")
+    }
 
     Ok(())
 }

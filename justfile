@@ -90,9 +90,13 @@ add-dispatched *args='':
 dispatch *args='':
   cargo run -- dispatch {{args}}
 
-# Run server
+# Run server and dispatch
 serve *args:
   cargo run -- serve {{args}}
+
+# Run server but no dispatch
+serve-no-dispatch *args:
+  cargo run -- serve --no-dispatch {{args}}
 
 #############################################
 # With local server running:

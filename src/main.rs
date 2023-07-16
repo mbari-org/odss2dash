@@ -8,8 +8,9 @@ mod tethysdash_client;
 mod trackdb_client;
 use clap::{Parser, Subcommand};
 use std::{
-    sync::{Arc, Mutex},
+    sync::{mpsc, Arc, Mutex},
     thread,
+    time::Duration,
 };
 
 use crate::dispatched_info::DispatchedInfo;
@@ -82,9 +83,9 @@ enum Commands {
 }
 
 fn main() {
+    let args = Cli::parse();
     config::load_config();
     env_logger::init();
-    let args = Cli::parse();
     match args.command {
         Commands::CheckConfig => {
             check_config();
@@ -115,11 +116,13 @@ fn check_config() {
 }
 
 fn get_platforms() {
+    println!("Getting platforms...");
     let platforms_res = trackdb_client::get_platforms();
     println!("{}", serde_json::to_string_pretty(&platforms_res).unwrap());
 }
 
 fn get_platform(platform_id: &str) {
+    println!("Getting platform...");
     let platform_res = trackdb_client::get_platform(platform_id);
     if let Some(platform_res) = platform_res {
         println!("{}", serde_json::to_string_pretty(&platform_res).unwrap());
@@ -176,27 +179,49 @@ fn dispatch(once: bool) {
     if once {
         dispatcher.launch_one_dispatch();
     } else {
-        dispatcher.launch_dispatch();
+        dispatcher.launch_dispatch(None);
     }
 }
 
 fn serve(no_dispatch: bool) {
+    if no_dispatch {
+        serve_only();
+    } else {
+        serve_and_dispatch();
+    }
+}
+
+fn serve_only() {
+    let platform_info = create_platform_info();
+    let dispatched_info = create_dispatched_info();
+    println!("Launching server...");
+    server::launch_server(platform_info, dispatched_info, None);
+}
+
+fn serve_and_dispatch() {
     let platform_info = create_platform_info();
     let dispatched_info = create_dispatched_info();
 
-    let dispatcher_handle = if no_dispatch {
-        None
-    } else {
+    let (done_sender, done_receiver) = mpsc::channel();
+
+    let server_handle = {
         let platform_info = Arc::clone(&platform_info);
         let dispatched_info = Arc::clone(&dispatched_info);
-        Some(thread::spawn(move || {
-            create_dispatcher(platform_info, dispatched_info).launch_dispatch();
-        }))
+        thread::spawn(move || {
+            println!("Launching server...");
+            server::launch_server(platform_info, dispatched_info, Some(done_sender));
+        })
     };
-    server::launch_server(platform_info, dispatched_info);
-    if let Some(dispatcher_handle) = dispatcher_handle {
-        dispatcher_handle.join().unwrap();
-    }
+
+    let dispatch_handle = {
+        thread::spawn(move || {
+            thread::sleep(Duration::from_secs(1));
+            create_dispatcher(platform_info, dispatched_info).launch_dispatch(Some(done_receiver));
+        })
+    };
+
+    server_handle.join().unwrap();
+    dispatch_handle.join().unwrap();
 }
 
 fn cli_styles() -> clap::builder::Styles {

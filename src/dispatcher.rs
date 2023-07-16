@@ -9,7 +9,7 @@ use std::collections::BTreeMap;
 use std::fs::File;
 use std::io::Write;
 use std::path::Path;
-use std::sync::{Arc, Mutex};
+use std::sync::{mpsc, Arc, Mutex};
 use std::time::Duration;
 
 type PlatformId = String;
@@ -42,19 +42,43 @@ impl Dispatcher {
         }
     }
 
-    pub fn launch_dispatch(&self) {
+    pub fn launch_dispatch(&self, done_receiver: Option<mpsc::Receiver<()>>) {
         println!(
-            "\nodss2dash dispatcher is running  (polling every {} secs)",
+            "\nDispatcher is running  (polling every {} secs)",
             self.poll_period.as_secs()
         );
+
+        // quickly react to done signal:
+        let loop_sleep = Duration::from_millis(333);
+
+        let mut remaining_time_to_dispatch = Duration::from_secs(0);
         loop {
-            let num_dispatched = self.dispatch_one();
-            println!(
-                "Dispatch done. {} positions dispatched.  Will poll again in {} secs",
-                num_dispatched,
-                self.poll_period.as_secs()
-            );
-            std::thread::sleep(self.poll_period);
+            if let Some(done_receiver) = &done_receiver {
+                match done_receiver.try_recv() {
+                    Ok(_) | Err(mpsc::TryRecvError::Disconnected) => {
+                        println!("\nDispatcher: received done signal.");
+                        break;
+                    }
+                    Err(mpsc::TryRecvError::Empty) => {}
+                }
+            }
+
+            if remaining_time_to_dispatch.is_zero() {
+                let num_dispatched = self.dispatch_one();
+                println!(
+                    "Dispatch done. {} positions dispatched.  Will poll again in {} secs",
+                    num_dispatched,
+                    self.poll_period.as_secs()
+                );
+                remaining_time_to_dispatch = self.poll_period;
+            } else {
+                if remaining_time_to_dispatch >= loop_sleep {
+                    remaining_time_to_dispatch -= loop_sleep;
+                } else {
+                    remaining_time_to_dispatch = Duration::from_secs(0);
+                }
+                std::thread::sleep(loop_sleep);
+            }
         }
     }
 
