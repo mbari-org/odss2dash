@@ -1,3 +1,6 @@
+image_name := 'mbari/o2d'
+# version read from Cargo.toml
+
 # List recipes
 list:
   @just --list --unsorted
@@ -117,6 +120,24 @@ docker-run *args='':
            -p 3033:3033  \
            mbari/o2d:2.0.0 {{args}}
 
+# Push image to Docker Hub, including x.y.z, x.y, x, and 'latest' tags
+docker-push-image:
+  #!/usr/bin/env bash
+  version=$(cat Cargo.toml | grep version | head -1 | cut -d\" -f2)
+  mayor_minor=$(echo $version | cut -d. -f1,2)
+  mayor=$(echo $version}| cut -d. -f1)
+  echo "    version='${version}'"
+  echo "mayor_minor='${mayor_minor}'"
+  echo "      mayor='${mayor}'"
+  docker push "{{image_name}}:$version"
+  just docker-tag-push-image $version "$mayor_minor"
+  just docker-tag-push-image $version "$mayor"
+  just docker-tag-push-image $version latest
+
+# tag and push image
+docker-tag-push-image version tag:
+  docker tag "{{image_name}}:{{version}}" "{{image_name}}:{{tag}}"
+  docker push "{{image_name}}:{{tag}}"
 
 #############################################
 # With local server running:
