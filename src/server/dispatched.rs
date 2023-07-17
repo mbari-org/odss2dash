@@ -28,20 +28,18 @@ pub fn create_dispatched_router(
     }));
 
     Router::new()
+        // TODO rename '/runtime back to '/dispatched' when dash4 has been updated
+        .route("/runtime/platforms", routing::get(get_dispatched_platforms))
         .route(
-            "/dispatched/platforms",
-            routing::get(get_dispatched_platforms),
-        )
-        .route(
-            "/dispatched/platforms/:platform_id",
+            "/runtime/platforms/:platform_id",
             routing::get(get_dispatched_platform),
         )
         .route(
-            "/dispatched/platforms",
+            "/runtime/platforms",
             routing::post(add_dispatched_platforms),
         )
         .route(
-            "/dispatched/platforms/:platform_id",
+            "/runtime/platforms/:platform_id",
             routing::delete(delete_dispatched_platform),
         )
         .with_state(info)
@@ -50,7 +48,7 @@ pub fn create_dispatched_router(
 /// Get all dispatched platforms.
 #[utoipa::path(
     get,
-    path = "/dispatched/platforms",
+    path = "/runtime/platforms",
     responses(
        (status = 200, description = "List of dispatched platforms", body = Vec<PlatformRes>)
     )
@@ -76,7 +74,7 @@ async fn get_dispatched_platforms(State(info): State<Arc<Mutex<Info>>>) -> Json<
 /// Get info about a dispatched platform.
 #[utoipa::path(
     get,
-    path = "/dispatched/platforms/{platform_id}",
+    path = "/runtime/platforms/{platform_id}",
     params(
         ("platform_id" = String, Path, description = "Platform ID"),
     ),
@@ -121,7 +119,7 @@ pub struct PlatformAdd {
 /// Add platforms to be dispatched.
 #[utoipa::path(
     post,
-    path = "/dispatched/platforms",
+    path = "/runtime/platforms",
     request_body = PlatformAdd,
     responses(
         (status = 201, description = "Platforms added successfully", body = Vec<PlatformRes>),
@@ -158,7 +156,7 @@ pub struct PlatformDeleteRes {
 /// Delete a dispatched platform.
 #[utoipa::path(
     delete,
-    path = "/dispatched/platforms/{platform_id}",
+    path = "/runtime/platforms/{platform_id}",
     params(
         ("platform_id" = String, Path, description = "Platform ID"),
     ),
