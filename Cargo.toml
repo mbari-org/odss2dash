@@ -28,3 +28,17 @@ utoipa-swagger-ui = { version = "3.1.3", features = ["axum"] }
 [dev-dependencies]
 axum-test = "10.1.0"
 pretty_assertions = "1.4.0"
+
+[profile.release]
+## Though not critical at all, we can optimize for size as speed performace
+## is not a big concern for this service.
+## Via directly running:
+##   docker run -v $PWD:/volume --rm -t clux/muslrust:stable cargo build --release
+## the results are as follows, depending on whether or not using the settings below:
+##  - without settings:  binary size: 25MB
+##  - with the settings: binary size: 16MB
+## Correspondimg docker image sizes are 28MB abd 18.3MB, respectively.
+strip = true
+opt-level = "z"
+lto = true
+codegen-units = 1

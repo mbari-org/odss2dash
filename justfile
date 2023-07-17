@@ -60,7 +60,7 @@ update:
   cargo update
 
 #############################################
-# Exercise the program:
+# Exercise the program (via cargo):
 
 # Run program
 run *args='':
@@ -97,6 +97,26 @@ serve *args:
 # Run server but no dispatch
 serve-no-dispatch *args:
   cargo run -- serve --no-dispatch {{args}}
+
+#############################################
+# docker recipes:
+
+# Dockerize
+dockerize *args='':
+  docker build -f docker/Dockerfile -t "mbari/o2d:2.0.0" {{args}} .
+
+#############################################
+# Exercise dockerized program:
+
+# docker run
+docker-run *args='':
+    docker run --name=o2d -it --rm \
+           -e RUST_LOG=info \
+           -e RUST_BACKTRACE=full \
+           -v $(pwd):/public \
+           -p 3033:3033  \
+           mbari/o2d:2.0.0 {{args}}
+
 
 #############################################
 # With local server running:
