@@ -38,7 +38,7 @@ pretty_assertions = "1.4.0"
 ##  - without settings:  binary size: 25MB
 ##  - with the settings: binary size: 16MB
 ## Correspondimg docker image sizes are 28MB abd 18.3MB, respectively.
-strip = true
+#strip = true  ## withouth this, 20MB.
 opt-level = "z"
 lto = true
 codegen-units = 1

@@ -1,6 +1,4 @@
-# This file defines the configuration for odss2dash.
-# Use a local `.env` file to capture environment variables
-# for any API Keys, and reference them below.
+## This file defines the configuration for odss2dash.
 
 ## To get platform and position information:
 odssApi = "https://odss.mbari.org/odss"
@@ -19,7 +17,11 @@ pollPeriod = "30 seconds"
 defaultLastNumberOfFixes = 5
 
 ## Target TethysDash instances:
-## (use a simple, alphanumeric string for each `name` entry)
+## For each:
+##  `name`: A simple, alphanumeric string
+##  `api`: The TehysDash API endpoint
+##  `apiKey`: Use `$EV` syntax to indicate environment variable with the key.
+##            A local `.env` file can be used to capture such variables.
 [[tethysdashes]]
 name = "okeanids"
 api = "https://okeanids.mbari.org/TethysDash/api"

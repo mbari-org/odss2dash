@@ -55,8 +55,13 @@ impl Dispatcher {
         loop {
             if let Some(done_receiver) = &done_receiver {
                 match done_receiver.try_recv() {
-                    Ok(_) | Err(mpsc::TryRecvError::Disconnected) => {
+                    Ok(_) => {
                         println!("\nDispatcher: received done signal.");
+                        break;
+                    }
+                    Err(mpsc::TryRecvError::Disconnected) => {
+                        // will happen if some error in server launching
+                        println!("\nDispatcher: done signal disconnected.");
                         break;
                     }
                     Err(mpsc::TryRecvError::Empty) => {}

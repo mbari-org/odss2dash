@@ -39,6 +39,11 @@ build *args='--release':
 install: build
   cargo install --path .
 
+# Create musl based binary
+build-musl:
+  docker run -v $PWD:/volume --rm -t clux/muslrust:stable cargo build --release
+  ls -lrt target/x86_64-unknown-linux-musl/release/
+
 # Clean
 clean:
   cargo clean
@@ -104,21 +109,39 @@ serve-no-dispatch *args:
 #############################################
 # docker recipes:
 
-# Dockerize
+# Dockerize the program
 dockerize *args='':
-  docker build -f docker/Dockerfile -t "mbari/o2d:2.0.0" {{args}} .
+  #!/usr/bin/env bash
+  version=$(cat Cargo.toml | grep version | head -1 | cut -d\" -f2)
+  docker build -f docker/Dockerfile -t "mbari/o2d:$version" {{args}} .
+
+# Save image
+docker-save-image suffix='':
+  #!/usr/bin/env bash
+  version=$(cat Cargo.toml | grep version | head -1 | cut -d\" -f2)
+  suffix={{suffix}}
+  docker save "mbari/o2d:$version" | gzip > "image_mbari_o2d_$version$suffix.tgz"
+
+# Load image
+docker-load-image suffix='':
+  #!/usr/bin/env bash
+  version=$(cat Cargo.toml | grep version | head -1 | cut -d\" -f2)
+  suffix={{suffix}}
+  docker load --input "image_mbari_o2d_$version$suffix.tgz"
 
 #############################################
 # Exercise dockerized program:
 
 # docker run
 docker-run *args='':
-    docker run --name=o2d -it --rm \
-           -e RUST_LOG=info \
-           -e RUST_BACKTRACE=full \
-           -v $(pwd):/public \
-           -p 3033:3033  \
-           mbari/o2d:2.0.0 {{args}}
+  #!/usr/bin/env bash
+  version=$(cat Cargo.toml | grep version | head -1 | cut -d\" -f2)
+  docker run --name=o2d -it --rm \
+         -e RUST_LOG=info \
+         -e RUST_BACKTRACE=full \
+         -v $(pwd):/public \
+         -p 3033:3033  \
+         "mbari/o2d:$version" {{args}}
 
 # Push image to Docker Hub, including x.y.z, x.y, x, and 'latest' tags
 docker-push-image:

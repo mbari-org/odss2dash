@@ -1,4 +1,5 @@
 dispatched*.json
 reported.json
 .env
+*.tgz
 target

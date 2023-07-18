@@ -7,7 +7,7 @@ use crate::platform_info::PlatformInfo;
 use crate::trackdb_client;
 
 use axum::{Router, Server};
-use hyper::Error;
+use std::error::Error;
 use std::net::{Ipv4Addr, SocketAddr};
 use std::sync::{mpsc, Arc, Mutex};
 use tokio_shutdown::Shutdown;
@@ -58,7 +58,7 @@ async fn launch(
     platform_info: Arc<Mutex<PlatformInfo>>,
     dispatched_info: Arc<Mutex<DispatchedInfo>>,
     done_sender: Option<mpsc::Sender<()>>,
-) -> Result<(), Error> {
+) -> Result<(), Box<dyn Error>> {
     let config = config::get_config();
     let mut doc = ApiDoc::openapi();
     doc.servers = Some(vec![
@@ -88,7 +88,7 @@ async fn launch(
         "Listening on {}  (apidoc: http://localhost:{}{} -> external: {})",
         address, config.port, apidoc_path, config.external_url
     );
-    let server = Server::bind(&address).serve(app.into_make_service());
+    let server = Server::try_bind(&address)?.serve(app.into_make_service());
 
     server.with_graceful_shutdown(shutdown.handle()).await?;
 
