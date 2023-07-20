@@ -3,12 +3,12 @@
 ## To get platform and position information:
 odssApi = "https://odss.mbari.org/odss"
 
-## External URL of the odss2dash service API
-## (basically for the swagger apidoc page):
-externalUrl = "https://okeanids.mbari.org/odss2dash/api"
-
 ## Server port to listen for requests:
 port = 3033
+
+## External URL of the odss2dash service
+externalUrl = "http://localhost:3033"
+#externalUrl = "https://okeanids.mbari.org/odss2dash"
 
 ## Interval to perform the dispatch:
 pollPeriod = "30 seconds"

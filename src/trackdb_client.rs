@@ -8,7 +8,7 @@ use utoipa::ToSchema;
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct PlatformRes {
-    #[serde(rename(deserialize = "_id"))]
+    #[serde(rename(deserialize = "_id", serialize = "_id"))]
     pub _id: String,
     pub name: String,
     pub abbreviation: String,
@@ -31,8 +31,8 @@ struct TrackDataRes {
     pub coordinates: Vec<Vec<f64>>,
 }
 
-const CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
-const TIMEOUT: Duration = Duration::from_secs(10);
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
+const TIMEOUT: Duration = Duration::from_secs(20);
 
 fn create_get_request(endpoint: &str) -> attohttpc::RequestBuilder {
     let config = config::get_config();
@@ -43,7 +43,10 @@ fn create_get_request(endpoint: &str) -> attohttpc::RequestBuilder {
 }
 
 pub fn get_platforms() -> Vec<PlatformRes> {
-    let request = create_get_request("/platforms");
+    log::debug!("get_platforms");
+
+    let endpoint = "/platforms";
+    let request = create_get_request(endpoint);
 
     match request.send() {
         Ok(res) => {
@@ -53,7 +56,7 @@ pub fn get_platforms() -> Vec<PlatformRes> {
                 platforms_res
             } else {
                 log::error!(
-                    "GET response: status={}, body={}",
+                    "GET {endpoint}: response: status={}, body={}",
                     res.status(),
                     res.text().unwrap_or("(none)".to_string())
                 );
@@ -61,13 +64,15 @@ pub fn get_platforms() -> Vec<PlatformRes> {
             }
         }
         Err(e) => {
-            log::error!("GET error: {}", e);
+            log::error!("GET {endpoint}: error: {}", e);
             vec![]
         }
     }
 }
 
 pub fn get_platform(platform_id: &str) -> Option<PlatformRes> {
+    log::debug!("get_platform: platform_id='{}'", platform_id);
+
     let endpoint = format!("/platforms/{platform_id}");
     let request = create_get_request(&endpoint);
 
@@ -79,7 +84,7 @@ pub fn get_platform(platform_id: &str) -> Option<PlatformRes> {
                 Some(platforms_res)
             } else {
                 log::error!(
-                    "GET response: status={}, body={}",
+                    "GET {endpoint} response: status={}, body={}",
                     res.status(),
                     res.text().unwrap_or("(none)".to_string())
                 );
@@ -87,7 +92,7 @@ pub fn get_platform(platform_id: &str) -> Option<PlatformRes> {
             }
         }
         Err(e) => {
-            log::error!("GET error: {}", e);
+            log::error!("GET {endpoint} error: {}", e);
             None
         }
     }
@@ -129,7 +134,8 @@ pub fn get_positions(
     log::debug!("get_positions: platform_id='{}'", platform_id);
     let params =
         create_params_for_positions(platform_id, last_number_of_fixes, start_date, end_date);
-    let request = create_get_request("/tracks").params(&params);
+    let endpoint = "/tracks";
+    let request = create_get_request(endpoint).params(&params);
     match request.send() {
         Ok(res) => {
             if res.is_success() {
@@ -145,8 +151,8 @@ pub fn get_positions(
                     }
                 }
             } else {
-                log::info!(
-                    "GET response: status={}, body={}",
+                log::warn!(
+                    "GET {endpoint} params={params:?}: response: status={}, body={}",
                     res.status(),
                     res.text().unwrap_or("(none)".to_string())
                 );
@@ -154,7 +160,7 @@ pub fn get_positions(
             }
         }
         Err(e) => {
-            log::error!("GET error: {}", e);
+            log::error!("GET {endpoint} params={params:?}: error: {}", e);
             None
         }
     }

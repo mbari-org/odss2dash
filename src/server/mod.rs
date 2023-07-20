@@ -11,6 +11,7 @@ use std::error::Error;
 use std::net::{Ipv4Addr, SocketAddr};
 use std::sync::{mpsc, Arc, Mutex};
 use tokio_shutdown::Shutdown;
+use tower_http::cors::CorsLayer;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
@@ -59,35 +60,28 @@ async fn launch(
     dispatched_info: Arc<Mutex<DispatchedInfo>>,
     done_sender: Option<mpsc::Sender<()>>,
 ) -> Result<(), Box<dyn Error>> {
-    let config = config::get_config();
-    let mut doc = ApiDoc::openapi();
-    doc.servers = Some(vec![
-        utoipa::openapi::Server::new(&config.external_url),
-        utoipa::openapi::Server::new(format!("http://localhost:{}", config.port)),
-    ]);
-
     let dispatched_router =
         dispatched::create_dispatched_router(Arc::clone(&platform_info), dispatched_info);
 
     let trackdb_router = trackdb::create_trackdb_router(Arc::clone(&platform_info));
 
-    let apidoc_path = "/apidoc";
-    let swagger_ui_router = SwaggerUi::new(apidoc_path)
-        .url("/api-docs/openapi.json", doc)
-        .config(utoipa_swagger_ui::Config::default().use_base_layout());
+    let cors = CorsLayer::permissive(); // TODO not so permissive
 
     let app = Router::new()
-        .merge(dispatched_router)
-        .merge(trackdb_router)
-        .merge(swagger_ui_router);
+        .nest(
+            "/api",
+            Router::new().merge(dispatched_router).merge(trackdb_router),
+        )
+        .merge(create_swagger_router())
+        .layer(cors); // "first add your routes [...] and then call layer"
 
     let shutdown = Shutdown::new().unwrap();
 
+    let config = config::get_config();
+
     let address = SocketAddr::from((Ipv4Addr::UNSPECIFIED, config.port));
-    println!(
-        "Listening on {}  (apidoc: http://localhost:{}{} -> external: {})",
-        address, config.port, apidoc_path, config.external_url
-    );
+    println!("Server listening on {}", address);
+
     let server = Server::try_bind(&address)?.serve(app.into_make_service());
 
     server.with_graceful_shutdown(shutdown.handle()).await?;
@@ -97,4 +91,43 @@ async fn launch(
     }
 
     Ok(())
+}
+
+fn create_swagger_router() -> SwaggerUi {
+    let config = config::get_config();
+
+    let api_url = format!("{}/api", config.external_url);
+
+    let mut doc = ApiDoc::openapi();
+    doc.servers = Some(vec![utoipa::openapi::Server::new(&api_url)]);
+
+    // For appropriate dispatch of SwaggerUI on deployed site:
+
+    // (a) this value good for both local and deployed site:
+    let apidoc_rel = "/apidoc";
+
+    let json_rel = if config.external_url.ends_with("/odss2dash") {
+        // (b) for deployed site, need to prefix with /odss2dash/
+        // per proxy setting on target server:
+        "/odss2dash/api-docs/openapi.json"
+    } else {
+        "/api-docs/openapi.json"
+    };
+
+    // (c) use the value in (b) for Config::from(), so that the correct url
+    // is used by swagger-ui app (setting in swagger-initializer.js):
+    let swagger_ui_config = utoipa_swagger_ui::Config::from(json_rel)
+        .display_operation_id(true)
+        .use_base_layout();
+
+    let swagger_ui = SwaggerUi::new(apidoc_rel)
+        // (d) as with (a), value here is good in general:
+        .url("/api-docs/openapi.json", doc)
+        .config(swagger_ui_config);
+
+    println!("api : {}", &api_url);
+    println!("doc : {}/apidoc/", config.external_url);
+    println!("spec: {}/api-docs/openapi.json", config.external_url);
+
+    swagger_ui
 }

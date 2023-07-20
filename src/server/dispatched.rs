@@ -54,6 +54,7 @@ pub fn create_dispatched_router(
     )
 )]
 async fn get_dispatched_platforms(State(info): State<Arc<Mutex<Info>>>) -> Json<Vec<PlatformRes>> {
+    log::info!("get_dispatched_platforms");
     let info = info.lock().unwrap();
     let mut dispatched_info = info.dispatched_info.lock().unwrap();
     let platform_ids = dispatched_info.get_platform_ids();
@@ -122,28 +123,32 @@ pub struct PlatformAdd {
     path = "/runtime/platforms",
     request_body = PlatformAdd,
     responses(
-        (status = 201, description = "Platforms added successfully", body = Vec<PlatformRes>),
+        (status = 201, description = "Platforms added successfully", body = Vec<String>),
     )
 )]
 async fn add_dispatched_platforms(
     State(info): State<Arc<Mutex<Info>>>,
     Json(platform_add): Json<PlatformAdd>,
-) -> Json<Vec<PlatformRes>> {
+) -> Json<Vec<String>> {
     log::info!("add_dispatched_platforms: platform_add={:?}", platform_add);
     let info = info.lock().unwrap();
+    let platform_info = get_platform_info(&info);
     let mut dispatched_info = info.dispatched_info.lock().unwrap();
-    let platform_info = info.platform_info.lock().unwrap();
 
-    let mut added: Vec<PlatformRes> = Vec::new();
+    let mut added: Vec<String> = Vec::new();
     for platform_id in &platform_add.platform_ids {
-        if let Some(platform_res) = platform_info.get_platform(platform_id) {
+        if platform_info.get_platform(platform_id).is_some() {
             dispatched_info.add_platform_id(platform_id);
-            added.push(platform_res.clone());
+            added.push(platform_id.clone());
         } else {
             log::debug!("Platform not found, so not dispatched: {platform_id}");
         }
     }
     Json(added)
+}
+
+fn get_platform_info(info: &Info) -> PlatformInfo {
+    info.platform_info.lock().unwrap().clone()
 }
 
 /// Response of a delete request.

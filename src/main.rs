@@ -144,14 +144,17 @@ fn add_dispatched(platform_ids: Vec<String>) {
     DispatchedInfo::new().add_platform_ids(platform_ids);
 }
 
+/// Initializes platform info cache via query to TrackingDB/ODSS.
 fn create_platform_info() -> Arc<Mutex<PlatformInfo>> {
-    /// Initialize cache with platforms from TrackingDB/ODSS:
     fn init_platform_info(platform_info: &Arc<Mutex<PlatformInfo>>) {
         let platforms_res = trackdb_client::get_platforms();
         if platforms_res.is_empty() {
             eprintln!("warning: no platforms returned from TrackingDB/ODSS");
         } else {
-            println!("{} platforms found in TrackingDB/ODSS", platforms_res.len());
+            println!(
+                "Platform cache initialized with {} platforms found in TrackingDB/ODSS",
+                platforms_res.len()
+            );
             platform_info.lock().unwrap().set_platforms(platforms_res);
         }
     }
@@ -194,7 +197,6 @@ fn serve(no_dispatch: bool) {
 fn serve_only() {
     let platform_info = create_platform_info();
     let dispatched_info = create_dispatched_info();
-    println!("Launching server...");
     server::launch_server(platform_info, dispatched_info, None);
 }
 
@@ -208,7 +210,6 @@ fn serve_and_dispatch() {
         let platform_info = Arc::clone(&platform_info);
         let dispatched_info = Arc::clone(&dispatched_info);
         thread::spawn(move || {
-            println!("Launching server...");
             server::launch_server(platform_info, dispatched_info, Some(done_sender));
         })
     };

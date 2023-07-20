@@ -167,32 +167,32 @@ docker-tag-push-image version tag:
 
 # Get platforms via REST API against TrackingDB
 rest-trackdb-get-platforms:
-  curlie get http://localhost:3033/trackdb/platforms
+  curlie get http://localhost:3033/api/trackdb/platforms
 
 # Get platform information via REST API against TrackingDB
 rest-trackdb-get-platform platform='5d5b2ea653a65f9ec656d872':
-  curlie get http://localhost:3033/trackdb/platforms/{{platform}}
+  curlie get http://localhost:3033/api/trackdb/platforms/{{platform}}
 
 # Get platform positions via REST API against TrackingDB
 rest-trackdb-get-positions platform='54065b5560d0e168c88d4043' lastNumberOfFixes='2':
-  curlie get http://localhost:3033/trackdb/platforms/{{platform}}/positions?lastNumberOfFixes={{lastNumberOfFixes}}
+  curlie get http://localhost:3033/api/trackdb/platforms/{{platform}}/positions?lastNumberOfFixes={{lastNumberOfFixes}}
 
 # Get dispatched platforms via REST API
 rest-dispatched-get-platforms:
-  curlie get http://localhost:3033/dispatched/platforms
+  curlie get http://localhost:3033/api/runtime/platforms
 
 # Get dispatched platform information via REST API
 rest-dispatched-get-platform platform='5d5b2ea653a65f9ec656d872':
-  curlie get http://localhost:3033/dispatched/platforms/{{platform}}
+  curlie get http://localhost:3033/api/runtime/platforms/{{platform}}
 
 # Add dispatched platform via REST API
 rest-dispatched-add-platforms platformIds='["001", "002", "003"]':
-  curlie post http://localhost:3033/dispatched/platforms \
+  curlie post http://localhost:3033/api/runtime/platforms \
     platformIds:='{{platformIds}}'
 
 # Delete dispatched platform via REST API
 rest-dispatched-delete-platform platform:
-  curlie delete http://localhost:3033/dispatched/platforms/{{platform}}
+  curlie delete http://localhost:3033/api/runtime/platforms/{{platform}}
 
 # Delete dispatched platforms via REST API
 rest-dispatched-delete-platforms:

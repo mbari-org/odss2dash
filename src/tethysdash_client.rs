@@ -15,8 +15,8 @@ pub struct XEvent {
     pub icon_url: Option<String>,
 }
 
-const CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
-const TIMEOUT: Duration = Duration::from_secs(10);
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
+const TIMEOUT: Duration = Duration::from_secs(20);
 
 /// Notifies an XEvent to a TethysDash instance.
 pub fn post_xevent(tethysdash_config: &TethysDashConfig, xevent: XEvent) -> Result<(), String> {
@@ -26,7 +26,7 @@ pub fn post_xevent(tethysdash_config: &TethysDashConfig, xevent: XEvent) -> Resu
     );
     let json = serde_json::json!(&xevent);
     let endpoint = format!("{}/async/xevent", tethysdash_config.api.clone());
-    let request = attohttpc::post(endpoint)
+    let request = attohttpc::post(&endpoint)
         .connect_timeout(CONNECT_TIMEOUT)
         .timeout(TIMEOUT)
         .header(
@@ -42,12 +42,12 @@ pub fn post_xevent(tethysdash_config: &TethysDashConfig, xevent: XEvent) -> Resu
                 Ok(())
             } else {
                 Err(format!(
-                    "POST response: status={}, body={}",
+                    "POST {endpoint}: response: status={}, body={}",
                     res.status(),
                     res.text().unwrap_or("(none)".to_string())
                 ))
             }
         }
-        Err(e) => Err(format!("POST error: {}", e)),
+        Err(e) => Err(format!("POST {endpoint}: error: {}", e)),
     }
 }

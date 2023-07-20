@@ -11,5 +11,5 @@ Overall plan:
 - [x] Dispatch of position polling and notification to configured TethysDash instances
 - [x] Service with REST API and OpenAPI documentation
 - [x] Dockerization
-- [ ] Testing
+- [x] Testing
 - [ ] Conclusion

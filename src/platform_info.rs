@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 // TODO keep latest known information in a file such that it can be used
 //  when for some reason the odss is not available
 
-#[derive(Serialize, Deserialize, Debug, Default)]
+#[derive(Serialize, Deserialize, Debug, Default, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct PlatformInfo {
     info: BTreeMap<String, PlatformRes>,

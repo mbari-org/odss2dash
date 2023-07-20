@@ -23,10 +23,6 @@ impl DispatchedInfo {
         Self::load()
     }
 
-    pub fn get_num_platforms(&self) -> usize {
-        self.platform_ids.len()
-    }
-
     pub fn get_platform_ids(&self) -> Vec<PlatformId> {
         self.platform_ids.clone()
     }

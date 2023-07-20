@@ -93,27 +93,37 @@ impl Dispatcher {
     }
 
     fn dispatch_one(&self) -> usize {
-        let dispatched_info = self.dispatched_info.lock().unwrap();
+        let platforms = self.get_dispatched_platforms();
 
         println!(
             "\nDispatching any new positions for {} platforms",
-            dispatched_info.get_num_platforms()
+            platforms.len()
         );
 
         let mut num_dispatched = 0;
         let mut reported_map = load_reported();
-        for platform_id in &dispatched_info.get_platform_ids() {
-            let platform_info = self.platform_info.lock().unwrap();
-            let platform_res = &platform_info.get_platform(platform_id);
-            if let Some(platform_res) = platform_res {
-                num_dispatched += self.dispatch_platform(&mut reported_map, platform_res);
-            } else {
-                eprintln!("No platform by id: {platform_id}");
-            }
+        for platform in &platforms {
+            num_dispatched += self.dispatch_platform(&mut reported_map, platform);
         }
 
         save_reported(&reported_map);
         num_dispatched
+    }
+
+    fn get_dispatched_platforms(&self) -> Vec<PlatformRes> {
+        let dispatched_info = self.dispatched_info.lock().unwrap();
+        let platform_info = self.platform_info.lock().unwrap();
+        dispatched_info
+            .get_platform_ids()
+            .iter()
+            .fold(vec![], |mut acc, id| {
+                if let Some(platform) = platform_info.get_platform(id) {
+                    acc.push(platform);
+                } else {
+                    eprintln!("No platform by id: {id}");
+                }
+                acc
+            })
     }
 
     fn dispatch_platform(&self, reported_map: &mut ReportedMap, platform: &PlatformRes) -> usize {

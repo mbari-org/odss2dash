@@ -150,10 +150,7 @@ mod tests {
         let config = parse_config_file(CONFIG_FILENAME);
 
         assert_eq!(config.odss_api, "https://odss.mbari.org/odss");
-        assert_eq!(
-            config.external_url,
-            "https://okeanids.mbari.org/odss2dash/api"
-        );
+        assert_eq!(config.external_url, "http://localhost:3033");
         assert_eq!(config.port, 3033);
         assert_eq!(config.poll_period, Duration::from_secs(30));
         assert_eq!(config.default_last_number_of_fixes, 5);

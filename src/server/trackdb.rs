@@ -25,26 +25,53 @@ pub fn create_trackdb_router(platform_info: Arc<Mutex<PlatformInfo>>) -> Router 
         .with_state(platform_info)
 }
 
+#[derive(Deserialize, IntoParams, Debug)]
+#[into_params(parameter_in = Query)]
+#[serde(rename_all = "camelCase")]
+pub struct PlatformsQuery {
+    /// Set to true to force reload from tracking db.
+    refresh: Option<bool>,
+}
+
 /// Get all platforms from the Tracking DB.
 #[utoipa::path(
     get,
     path = "/trackdb/platforms",
+    params(
+        PlatformsQuery,
+    ),
     responses(
        (status = 200, description = "List of platforms", body = PositionsResponse)
     )
 )]
 async fn get_platforms(
     State(platform_info): State<Arc<Mutex<PlatformInfo>>>,
+    query: Query<PlatformsQuery>,
 ) -> Json<Vec<PlatformRes>> {
-    let mut platform_info = platform_info.lock().unwrap();
-    let platforms_res = trackdb_client::get_platforms();
-    if platforms_res.is_empty() {
-        log::warn!("get_platforms: no platforms found; returning cached platforms");
+    let query = query.0;
+    log::info!("get_platforms query: {:?}", query);
+
+    if query.refresh == Some(true) {
+        let mut platform_info = platform_info.lock().unwrap();
+        let platforms_res = trackdb_client::get_platforms();
+        if platforms_res.is_empty() {
+            log::warn!("get_platforms: no platforms found; returning cached platforms");
+        } else {
+            log::info!("get_platforms: {} platforms found", platforms_res.len());
+            platform_info.set_platforms(platforms_res);
+        }
+        Json(platform_info.get_platforms())
     } else {
-        log::info!("get_platforms: {} platforms found", platforms_res.len());
-        platform_info.set_platforms(platforms_res);
+        let platforms = {
+            let platform_info = platform_info.lock().unwrap();
+            platform_info.get_platforms()
+        };
+        log::info!(
+            "get_platforms: returned {} cached platforms",
+            platforms.len()
+        );
+        Json(platforms)
     }
-    Json(platform_info.get_platforms())
 }
 
 /// Get info about a platform.
@@ -62,6 +89,7 @@ async fn get_platform(
     State(platform_info): State<Arc<Mutex<PlatformInfo>>>,
     Path(platform_id): Path<String>,
 ) -> impl IntoResponse {
+    log::info!("get_platform: platform_id={}", platform_id);
     let mut platform_info = platform_info.lock().unwrap();
     match trackdb_client::get_platform(&platform_id) {
         Some(platform_res) => {
@@ -89,6 +117,14 @@ pub struct PositionsQuery {
 }
 
 /// Get latest platform positions.
+///
+/// Note that the `lastNumberOfFixes` parameter has precedence over, and in fact is
+/// mutually exclusive with the `startDate` and `endDate` parameters in the ODSS system.
+/// The odss2dash service gives precedence to `startDate` and `endDate` to facilitate
+/// the playback feature in the DashUI. That is, `lastNumberOfFixes` will not be passed
+/// to the request to ODSS if any of `startDate` or `endDate` is given,
+/// in which case, odss2dash will apply the `lastNumberOfFixes` limit on the response
+/// from ODSS prior to responding to this request.
 #[utoipa::path(
     get,
     path = "/trackdb/platforms/{platform_id}/positions",
@@ -105,12 +141,10 @@ async fn get_platform_positions(
     Path(platform_id): Path<String>,
     query: Query<PositionsQuery>,
 ) -> impl IntoResponse {
-    log::debug!("get_platform_positions: query={:?}", query);
+    let query = query.0;
+    log::info!("get_platform_positions query: {:?}", query);
 
-    let query: PositionsQuery = query.0;
-    log::debug!("query: {:?}", query);
-
-    let platform_info = platform_info.lock().unwrap();
+    let platform_info = get_platform_info(platform_info);
 
     let positions = trackdb_client::get_positions(
         &platform_id,
@@ -129,6 +163,10 @@ async fn get_platform_positions(
         }
         None => (StatusCode::NOT_FOUND, "Platform not found").into_response(),
     }
+}
+
+fn get_platform_info(platform_info: Arc<Mutex<PlatformInfo>>) -> PlatformInfo {
+    platform_info.lock().unwrap().clone()
 }
 
 #[cfg(test)]
