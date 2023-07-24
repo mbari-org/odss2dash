@@ -1,6 +1,6 @@
 [package]
-name = "o2d"
-version = "2.0.1"
+name = "odss2dash"
+version = "2.0.2"
 authors = [
     "Carlos A. Rueda <carueda@mbari.org>",
 ]
@@ -18,7 +18,7 @@ Subsequent asset positions are then asynchronously received by Dash4 via websock
 
 More information at <https://docs.mbari.org/tethysdash/odss2dash/>.
 """
-repository  = "https://github.com/mbari-org/o2d"
+repository  = "https://github.com/mbari-org/odss2dash"
 license = "Apache-2.0"
 edition = "2021"
 

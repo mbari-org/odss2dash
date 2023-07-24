@@ -1,4 +1,4 @@
-image_name := 'mbari/o2d'
+image_name := 'mbari/odss2dash'
 # version read from Cargo.toml
 
 # List recipes
@@ -113,14 +113,14 @@ serve-no-dispatch *args:
 dockerize *args='':
   #!/usr/bin/env bash
   version=$(cat Cargo.toml | grep version | head -1 | cut -d\" -f2)
-  docker build -f docker/Dockerfile -t "mbari/o2d:$version" {{args}} .
+  docker build -f docker/Dockerfile -t "mbari/odss2dash:$version" {{args}} .
 
 # Save image
 docker-save-image suffix='':
   #!/usr/bin/env bash
   version=$(cat Cargo.toml | grep version | head -1 | cut -d\" -f2)
   suffix={{suffix}}
-  docker save "mbari/o2d:$version" | gzip > "image_mbari_o2d_$version$suffix.tgz"
+  docker save "mbari/odss2dash:$version" | gzip > "image_mbari_o2d_$version$suffix.tgz"
 
 # Load image
 docker-load-image suffix='':
@@ -136,12 +136,12 @@ docker-load-image suffix='':
 docker-run *args='':
   #!/usr/bin/env bash
   version=$(cat Cargo.toml | grep version | head -1 | cut -d\" -f2)
-  docker run --name=o2d -it --rm \
+  docker run --name=odss2dash -it --rm \
          -e RUST_LOG=info \
          -e RUST_BACKTRACE=full \
          -v $(pwd):/public \
          -p 3033:3033  \
-         "mbari/o2d:$version" {{args}}
+         "mbari/odss2dash:$version" {{args}}
 
 # Push image to Docker Hub, including x.y.z, x.y, x, and 'latest' tags
 docker-push-image:

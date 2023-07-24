@@ -21,7 +21,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v3
         with:
-          images: mbari/o2d
+          images: mbari/odss2dash
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}

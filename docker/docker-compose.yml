@@ -2,9 +2,9 @@
 
 version: '3.7'
 services:
-  o2d:
-    container_name: o2d
-    image: mbari/o2d:2
+  odss2dash:
+    container_name: odss2dash
+    image: mbari/odss2dash:2
     ports:
       - '3033:3033'
     volumes:
