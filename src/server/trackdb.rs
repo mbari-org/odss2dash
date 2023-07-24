@@ -26,7 +26,6 @@ pub fn create_trackdb_router(platform_info: Arc<Mutex<PlatformInfo>>) -> Router 
 }
 
 #[derive(Deserialize, IntoParams, Debug)]
-#[into_params(parameter_in = Query)]
 #[serde(rename_all = "camelCase")]
 pub struct PlatformsQuery {
     /// Set to true to force reload from tracking db.
@@ -105,7 +104,6 @@ async fn get_platform(
 }
 
 #[derive(Deserialize, IntoParams, Debug)]
-#[into_params(parameter_in = Query)]
 #[serde(rename_all = "camelCase")]
 pub struct PositionsQuery {
     /// Maximum number of last positions to report

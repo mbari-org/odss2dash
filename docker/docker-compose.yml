@@ -1,0 +1,28 @@
+# Basis for actual spec on production server.
+
+version: '3.7'
+services:
+  o2d:
+    container_name: o2d
+    image: mbari/o2d:2
+    ports:
+      - '3033:3033'
+    volumes:
+      - $PWD/odss2dash:/public
+
+    environment:
+      - OKEANIDS_APIKEY
+      - TETHYSTEST_APIKEY
+      - RUST_LOG=info
+      - RUST_BACKTRACE=0
+
+    command: serve
+
+    ## for any immediate initial notifications:
+    depends_on:
+      - tethysdash
+
+    init: true
+    restart: unless-stopped
+    labels:
+      - 'com.centurylinklabs.watchtower.enable=true'

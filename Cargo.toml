@@ -1,10 +1,25 @@
 [package]
 name = "o2d"
-version = "2.0.0"
+version = "2.0.1"
 authors = [
     "Carlos A. Rueda <carueda@mbari.org>",
 ]
-license = "MIT OR Apache-2.0"
+description = """
+The `odss2dash` service periodically retrieves the latest positions of
+specified assets from the MBARI Tracking DB (via ODSS API) to then
+relay them to any number of configured TethysDash instances,
+which in turn will push them to corresponding Dash UI instances
+(via websockets).
+
+The Dash4 UI uses the odss2dash API to populate its TrackDB platform dropdown in the Map tab,
+where the user can then indicate the desired assets to be included,
+and to retrieve and display corresponding recent of positions.
+Subsequent asset positions are then asynchronously received by Dash4 via websockets.
+
+More information at <https://docs.mbari.org/tethysdash/odss2dash/>.
+"""
+repository  = "https://github.com/mbari-org/o2d"
+license = "Apache-2.0"
 edition = "2021"
 
 [dependencies]
@@ -23,8 +38,8 @@ tokio = { version = "1", features = ["full"] }
 tokio-shutdown = "0.1.4"
 tower-http = { version = "0.4.2", features = ["cors"] }
 toml = "0.7.5"
-utoipa = "3.3.0"
-utoipa-swagger-ui = { version = "3.1.3", features = ["axum"] }
+utoipa = { version = "3", features = ["axum_extras"] }
+utoipa-swagger-ui = { version = "3", features = ["axum"] }
 
 [dev-dependencies]
 axum-test = "10.1.0"
@@ -33,12 +48,12 @@ pretty_assertions = "1.4.0"
 [profile.release]
 ## Though not critical at all, we can optimize for size as speed performace
 ## is not a big concern for this service.
-## Via directly running:
-##   docker run -v $PWD:/volume --rm -t clux/muslrust:stable cargo build --release
-## the results are as follows, depending on whether or not using the settings below:
+## Via directly running `just build-musl` the results are as follows,
+## depending on whether or not we use the settings below:
 ##  - without settings:  binary size: 25MB
 ##  - with the settings: binary size: 16MB
-## Correspondimg docker image sizes are 28MB abd 18.3MB, respectively.
+## Corresponding docker image sizes (see docker/Dockerfile) are
+##   28MB and 18.3MB, respectively.
 #strip = true  ## withouth this, 20MB.
 opt-level = "z"
 lto = true
