@@ -846,7 +846,7 @@ dependencies = [
 
 [[package]]
 name = "odss2dash"
-version = "2.0.2"
+version = "2.0.3"
 dependencies = [
  "anstyle",
  "attohttpc",

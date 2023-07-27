@@ -140,7 +140,10 @@ async fn get_platform_positions(
     query: Query<PositionsQuery>,
 ) -> impl IntoResponse {
     let query = query.0;
-    log::info!("get_platform_positions query: {:?}", query);
+    log::info!(
+        "get_platform_positions: platform_id={platform_id} query: {:?}",
+        query
+    );
 
     let platform_info = get_platform_info(platform_info);
 
