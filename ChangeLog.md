@@ -1,5 +1,6 @@
 2023-10
 
+- some dependencies updated
 - `cargo update`
 
 2023-07
