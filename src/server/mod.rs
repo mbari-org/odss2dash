@@ -1,4 +1,5 @@
 mod dispatched;
+mod health;
 mod trackdb;
 
 use crate::config;
@@ -30,6 +31,7 @@ pub fn launch_server(
 #[openapi(
     info(title = "odss2dash API"),
     paths(
+        health::get_health,
         dispatched::get_dispatched_platforms,
         dispatched::get_dispatched_platform,
         dispatched::add_dispatched_platforms,
@@ -40,6 +42,7 @@ pub fn launch_server(
     ),
     components(
         schemas(
+            health::HealthStatus,
             dispatched::PlatformAdd,
             dispatched::PlatformDeleteRes,
             trackdb_client::PlatformRes,
@@ -48,6 +51,7 @@ pub fn launch_server(
         ),
     ),
     tags(
+        (name = "health", description = "Basic service status"),
         (name = "dispatched", description = "Dispatched platforms for position notifications"),
         (name = "trackdb", description = "Tracking DB platform information"),
     )
@@ -60,9 +64,9 @@ async fn launch(
     dispatched_info: Arc<Mutex<DispatchedInfo>>,
     done_sender: Option<mpsc::Sender<()>>,
 ) -> Result<(), Box<dyn Error>> {
+    let health_router = health::create_health_router();
     let dispatched_router =
         dispatched::create_dispatched_router(Arc::clone(&platform_info), dispatched_info);
-
     let trackdb_router = trackdb::create_trackdb_router(Arc::clone(&platform_info));
 
     let cors = CorsLayer::permissive(); // TODO not so permissive
@@ -70,7 +74,10 @@ async fn launch(
     let app = Router::new()
         .nest(
             "/api",
-            Router::new().merge(dispatched_router).merge(trackdb_router),
+            Router::new()
+                .merge(health_router)
+                .merge(dispatched_router)
+                .merge(trackdb_router),
         )
         .merge(create_swagger_router())
         .layer(cors); // "first add your routes [...] and then call layer"
