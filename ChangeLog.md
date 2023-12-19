@@ -1,5 +1,6 @@
 2023-12
 
+- updated axum from 0.6 to 0.7 (https://tokio.rs/blog/2023-11-27-announcing-axum-0-7-0)
 - `cargo update`
 
 2023-10

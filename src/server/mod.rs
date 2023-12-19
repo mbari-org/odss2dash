@@ -6,11 +6,11 @@ use crate::dispatched_info::DispatchedInfo;
 use crate::platform_info::PlatformInfo;
 use crate::trackdb_client;
 
-use axum::{Router, Server};
+use axum::Router;
 use std::error::Error;
 use std::net::{Ipv4Addr, SocketAddr};
 use std::sync::{mpsc, Arc, Mutex};
-use tokio_shutdown::Shutdown;
+use tokio::net::TcpListener;
 use tower_http::cors::CorsLayer;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
@@ -75,17 +75,14 @@ async fn launch(
         .merge(create_swagger_router())
         .layer(cors); // "first add your routes [...] and then call layer"
 
-    let shutdown = Shutdown::new().unwrap();
-
     let config = config::get_config();
 
     let address = SocketAddr::from((Ipv4Addr::UNSPECIFIED, config.port));
+    let listener = TcpListener::bind(address.to_string()).await?;
     println!("Server listening on {}", address);
 
-    let server = Server::try_bind(&address)?.serve(app.into_make_service());
-
-    server.with_graceful_shutdown(shutdown.handle()).await?;
-
+    let server = axum::serve(listener, app.into_make_service());
+    server.await?;
     if let Some(done_sender) = done_sender {
         done_sender.send(()).expect("error sending done message")
     }
