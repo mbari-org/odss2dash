@@ -15,6 +15,10 @@ all: test format clippy
 check:
   cargo check
 
+# cargo watch (with check by default)
+watch *cmd='check':
+  cargo watch -c -x '{{ cmd }}'
+
 # Run tests
 test *args='':
   cargo test {{args}}
