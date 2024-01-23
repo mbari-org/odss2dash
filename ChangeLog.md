@@ -1,3 +1,9 @@
+2024-01
+
+2.1.1
+
+- dependabot fix
+
 2023-12
 
 - added a `/health` endpoint

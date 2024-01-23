@@ -1,6 +1,6 @@
 [package]
 name = "odss2dash"
-version = "2.1.0"
+version = "2.1.1"
 authors = [
     "Carlos A. Rueda <carueda@mbari.org>",
 ]
@@ -50,7 +50,7 @@ pretty_assertions = "1.4.0"
 ## Though not critical at all, we can optimize for size as speed performace
 ## is not a big concern for this service.
 ## Via directly running `just build-musl` the results are as follows,
-## depending on whether or not we use the settings below:
+## depending on whether we use the settings below:
 ##  - without settings:  binary size: 25MB
 ##  - with the settings: binary size: 16MB
 ## Corresponding docker image sizes (see docker/Dockerfile) are

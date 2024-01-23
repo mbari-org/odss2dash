@@ -46,7 +46,7 @@ install: build
 # Create musl based binary
 build-musl:
   docker run -v $PWD:/volume --rm -t clux/muslrust:stable cargo build --release
-  ls -lrt target/x86_64-unknown-linux-musl/release/
+  ls -lrth target/x86_64-unknown-linux-musl/release/
 
 # List git tags
 tags:
