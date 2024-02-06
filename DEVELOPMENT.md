@@ -13,7 +13,7 @@ j run --help
 ```
 ```
 cargo run -- --help
-    Finished dev [unoptimized + debuginfo] target(s) in 0.35s
+    Finished dev [unoptimized + debuginfo] target(s) in 0.14s
      Running `target/debug/odss2dash --help`
 odss2dash:
      The central function of this program is a service that relays
@@ -29,6 +29,7 @@ Commands:
   add-dispatched  Add platforms to be dispatched
   dispatch        Launch dispatch according to configuration
   serve           Launch service
+  health          Get health similar to the endpoint
   help            Print this message or the help of the given subcommand(s)
 
 Options:
@@ -78,14 +79,11 @@ As with other TethysDash components, this now also includes continuous deploymen
 just pushing a new tag to the repo will trigger an automatic image build and subsequent
 update of the running container.
 
-(In case of need to revert, [v1](https://github.com/mbari-org/odss2dash1) is still available.)
-
-Overall plan:
-
 - [x] Initial version with configuration handling
 - [x] Direct requests to the Tracking DB
 - [x] Dispatch of position polling and notification to configured TethysDash instances
 - [x] Service with REST API and OpenAPI documentation
 - [x] Dockerization
 - [x] Testing
-- [ ] Conclusion
+
+(The v1 code is [here](https://github.com/mbari-org/odss2dash1).)
