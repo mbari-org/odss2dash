@@ -4,6 +4,7 @@
 
 - some lib updates 
 - added `health` command.
+- `j run serve --no-dispatch` is a good way to locally test the utoipa ui.
 
 2024-01
 
