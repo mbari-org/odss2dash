@@ -1,6 +1,7 @@
 use axum::{routing, Json, Router};
 use serde::{Deserialize, Serialize};
-use sysinfo::{CpuRefreshKind, RefreshKind, System, SystemExt};
+use std::time::Instant;
+use sysinfo::{CpuRefreshKind, MemoryRefreshKind, RefreshKind, System};
 use utoipa::ToSchema;
 
 pub fn create_health_router() -> Router {
@@ -25,21 +26,28 @@ pub struct HealthStatus {
        (status = 200, description = "Get a status of the service", body = HealthStatus)
     )
 )]
+
 async fn get_health() -> Json<HealthStatus> {
-    log::info!("get_health");
+    Json(get_health_status())
+}
+
+pub fn get_health_status() -> HealthStatus {
+    let start = Instant::now();
     let mut sys = System::new_with_specifics(
         RefreshKind::new()
-            .with_memory()
+            .with_memory(MemoryRefreshKind::everything())
             .with_cpu(CpuRefreshKind::new().with_frequency()),
     );
     sys.refresh_memory();
     sys.refresh_cpu();
-
-    Json(HealthStatus {
+    let status = HealthStatus {
         free_memory: sys.available_memory(),
         total_memory: sys.total_memory(),
         cpus: sys.cpus().len(),
         application: env!("CARGO_PKG_NAME").to_string(),
         version: env!("CARGO_PKG_VERSION").to_string(),
-    })
+    };
+    let duration = start.elapsed();
+    log::info!("get_health_status (took: {duration:?})");
+    status
 }

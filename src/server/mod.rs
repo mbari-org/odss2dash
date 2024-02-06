@@ -1,5 +1,5 @@
 mod dispatched;
-mod health;
+pub mod health;
 mod trackdb;
 
 use crate::config;

@@ -1,3 +1,10 @@
+2024-02
+
+2.1.2
+
+- some lib updates 
+- added `health` command.
+
 2024-01
 
 2.1.1

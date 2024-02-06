@@ -16,6 +16,7 @@ use std::{
 use crate::dispatched_info::DispatchedInfo;
 use crate::dispatcher::Dispatcher;
 use crate::platform_info::PlatformInfo;
+use crate::server::health::get_health_status;
 use crate::tethysdash_client::post_xevent;
 
 /// The odss2dash CLI
@@ -80,6 +81,10 @@ enum Commands {
         #[arg(long)]
         no_dispatch: bool,
     },
+
+    /// Get health similar to the endpoint
+    #[command()]
+    Health,
 }
 
 fn main() {
@@ -107,6 +112,9 @@ fn main() {
         }
         Commands::Serve { no_dispatch } => {
             serve(no_dispatch);
+        }
+        Commands::Health => {
+            get_health();
         }
     }
 }
@@ -223,6 +231,11 @@ fn serve_and_dispatch() {
 
     server_handle.join().unwrap();
     dispatch_handle.join().unwrap();
+}
+
+fn get_health() {
+    let status = get_health_status();
+    println!("{}", serde_json::to_string_pretty(&status).unwrap());
 }
 
 fn cli_styles() -> clap::builder::Styles {
