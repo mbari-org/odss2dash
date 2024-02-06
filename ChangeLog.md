@@ -1,5 +1,9 @@
 2024-02
 
+2.2.0
+
+- trackdb_client: properly handle response, e.g., when an invalid platform ID is queried.
+
 2.1.2
 
 - some lib updates 

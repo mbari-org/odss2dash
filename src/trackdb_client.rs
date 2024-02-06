@@ -51,9 +51,16 @@ pub fn get_platforms() -> Vec<PlatformRes> {
     match request.send() {
         Ok(res) => {
             if res.is_success() {
-                let platforms_res = res.json::<Vec<PlatformRes>>().unwrap();
-                log::debug!("odss platforms_res = {:?}", platforms_res);
-                platforms_res
+                match res.json::<Vec<PlatformRes>>() {
+                    Ok(platforms_res) => {
+                        log::debug!("odss platforms_res = {:?}", platforms_res);
+                        platforms_res
+                    }
+                    Err(e) => {
+                        log::error!("could not parse response: {}", e);
+                        vec![]
+                    }
+                }
             } else {
                 log::error!(
                     "GET {endpoint}: response: status={}, body={}",
@@ -79,9 +86,16 @@ pub fn get_platform(platform_id: &str) -> Option<PlatformRes> {
     match request.send() {
         Ok(res) => {
             if res.is_success() {
-                let platforms_res = res.json::<PlatformRes>().unwrap();
-                log::debug!("odss platform_res = {:?}", platforms_res);
-                Some(platforms_res)
+                match res.json::<PlatformRes>() {
+                    Ok(platform_res) => {
+                        log::debug!("odss platform_res = {:?}", platform_res);
+                        Some(platform_res)
+                    }
+                    Err(e) => {
+                        log::error!("could not parse response: {}", e);
+                        None
+                    }
+                }
             } else {
                 log::error!(
                     "GET {endpoint} response: status={}, body={}",
