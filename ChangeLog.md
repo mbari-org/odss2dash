@@ -1,3 +1,10 @@
+2024-03
+
+2.2.2
+
+- `cargo update`
+- dependabot fix
+
 2024-02
 
 2.2.0
