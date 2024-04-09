@@ -1,6 +1,6 @@
 [package]
 name = "odss2dash"
-version = "2.2.2"
+version = "2.2.3"
 authors = [
     "Carlos A. Rueda <carueda@mbari.org>",
 ]
