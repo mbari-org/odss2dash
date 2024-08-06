@@ -1,3 +1,11 @@
+2024-08
+
+2.2.4
+
+- Issue note in ci with time dependency, which a simple `cargo update` fixes
+  (while also bringing in a few other updates)
+- dependabot fix incorporated. 
+
 2024-04
 
 2.2.3
