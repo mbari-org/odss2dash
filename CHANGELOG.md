@@ -1,5 +1,9 @@
 2024-08
 
+2.2.5
+
+- maintenance update
+
 2.2.4
 
 - Issue note in ci with time dependency, which a simple `cargo update` fixes

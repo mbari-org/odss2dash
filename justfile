@@ -55,7 +55,7 @@ tags:
 # Create and push git tag
 tag-and-push:
   #!/usr/bin/env bash
-  version=$(cat Cargo.toml | grep version | head -1 | cut -d\" -f2)
+  version=$(tq -f Cargo.toml 'package.version')
   echo "tagging and pushing v${version}"
   git tag v${version}
   git push origin v${version}
