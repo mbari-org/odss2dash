@@ -15,11 +15,11 @@ pub fn create_trackdb_router(platform_info: Arc<Mutex<PlatformInfo>>) -> Router 
     Router::new()
         .route("/trackdb/platforms", routing::get(get_platforms))
         .route(
-            "/trackdb/platforms/:platform_id",
+            "/trackdb/platforms/{platform_id}",
             routing::get(get_platform),
         )
         .route(
-            "/trackdb/platforms/:platform_id/positions",
+            "/trackdb/platforms/{platform_id}/positions",
             routing::get(get_platform_positions),
         )
         .with_state(platform_info)

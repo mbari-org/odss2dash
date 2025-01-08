@@ -1,3 +1,12 @@
+2025-01
+
+2.3.0
+
+- Updated dependencies.
+    - should fix recent dependabot issues 
+    - also updated axum from 0.7.2 to 0.8.1, which just required changing the path 
+      parameter syntax from /:single to /{single} (odss2dash didn't use /*many).
+
 2024-08
 
 2.2.5

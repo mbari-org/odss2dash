@@ -31,7 +31,7 @@ pub fn create_dispatched_router(
         // TODO rename '/runtime back to '/dispatched' when dash4 has been updated
         .route("/runtime/platforms", routing::get(get_dispatched_platforms))
         .route(
-            "/runtime/platforms/:platform_id",
+            "/runtime/platforms/{platform_id}",
             routing::get(get_dispatched_platform),
         )
         .route(
@@ -39,7 +39,7 @@ pub fn create_dispatched_router(
             routing::post(add_dispatched_platforms),
         )
         .route(
-            "/runtime/platforms/:platform_id",
+            "/runtime/platforms/{platform_id}",
             routing::delete(delete_dispatched_platform),
         )
         .with_state(info)
