@@ -34,12 +34,12 @@ async fn get_health() -> Json<HealthStatus> {
 pub fn get_health_status() -> HealthStatus {
     let start = Instant::now();
     let mut sys = System::new_with_specifics(
-        RefreshKind::new()
+        RefreshKind::nothing()
             .with_memory(MemoryRefreshKind::everything())
-            .with_cpu(CpuRefreshKind::new().with_frequency()),
+            .with_cpu(CpuRefreshKind::nothing().with_frequency()),
     );
     sys.refresh_memory();
-    sys.refresh_cpu();
+    sys.refresh_cpu_all();
     let status = HealthStatus {
         free_memory: sys.available_memory(),
         total_memory: sys.total_memory(),

@@ -1,3 +1,9 @@
+2025-02
+
+2.3.1
+
+- Updated dependencies 
+
 2025-01
 
 2.3.0
