@@ -1,6 +1,5 @@
 # Basis for actual spec on production server.
 
-version: '3.7'
 services:
   odss2dash:
     container_name: odss2dash
