@@ -1,5 +1,9 @@
 2025-02
 
+2.3.2
+
+- Re-enabled graceful shutdown
+
 2.3.1
 
 - Updated CI/release workflows

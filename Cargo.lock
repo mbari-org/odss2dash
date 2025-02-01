@@ -1070,7 +1070,7 @@ dependencies = [
 
 [[package]]
 name = "odss2dash"
-version = "2.3.1"
+version = "2.3.2"
 dependencies = [
  "anstyle",
  "attohttpc",
@@ -1087,7 +1087,6 @@ dependencies = [
  "serde_json",
  "sysinfo",
  "tokio",
- "tokio-shutdown",
  "toml",
  "tower-http",
  "utoipa",
@@ -1740,16 +1739,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "tokio-shutdown"
-version = "0.1.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d12a69e6b9c26d07555489cae0e9015a218899bae97db50a6837fbc67cf54dc7"
-dependencies = [
- "tokio",
- "tracing",
-]
-
-[[package]]
 name = "tokio-util"
 version = "0.7.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1846,19 +1835,7 @@ checksum = "784e0ac535deb450455cbfa28a6f0df145ea1bb7ae51b821cf5e7927fdcfbdd0"
 dependencies = [
  "log",
  "pin-project-lite",
- "tracing-attributes",
  "tracing-core",
-]
-
-[[package]]
-name = "tracing-attributes"
-version = "0.1.28"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "395ae124c09f9e6918a2310af6038fba074bcf474ac352496d5910dd59a2226d"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
 ]
 
 [[package]]

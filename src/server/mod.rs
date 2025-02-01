@@ -12,6 +12,7 @@ use std::error::Error;
 use std::net::{Ipv4Addr, SocketAddr};
 use std::sync::{mpsc, Arc, Mutex};
 use tokio::net::TcpListener;
+use tokio::signal;
 use tower_http::cors::CorsLayer;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
@@ -88,8 +89,10 @@ async fn launch(
     let listener = TcpListener::bind(address.to_string()).await?;
     println!("Server listening on {}", address);
 
-    let server = axum::serve(listener, app.into_make_service());
-    server.await?;
+    axum::serve(listener, app.into_make_service())
+        .with_graceful_shutdown(shutdown_signal())
+        .await?;
+
     if let Some(done_sender) = done_sender {
         done_sender.send(()).expect("error sending done message")
     }
@@ -134,4 +137,28 @@ fn create_swagger_router() -> SwaggerUi {
     println!("spec: {}/api-docs/openapi.json", config.external_url);
 
     swagger_ui
+}
+
+// https://github.com/tokio-rs/axum/blob/6c9cabf985236e3775fc07b3f54d639553fd1424/examples/graceful-shutdown/src/main.rs#L50
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        signal::ctrl_c().await.expect("Ctrl+C handler installed");
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        signal::unix::signal(signal::unix::SignalKind::terminate())
+            .expect("signal handler installed")
+            .recv()
+            .await;
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    let bye = || println!("\nBye!");
+    tokio::select! {
+        _ = ctrl_c => bye(),
+        _ = terminate => bye(),
+    }
 }
