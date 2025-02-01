@@ -2,6 +2,7 @@
 
 2.3.1
 
+- Updated CI/release workflows
 - Updated dependencies 
 
 2025-01
