@@ -1,5 +1,9 @@
 2025-02
 
+2.3.3
+
+- Maintenance update
+
 2.3.2
 
 - Re-enabled graceful shutdown
