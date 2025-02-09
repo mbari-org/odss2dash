@@ -34,21 +34,24 @@ pub fn serve(no_dispatch: bool) {
 
 /// Initializes platform info cache via query to TrackingDB/ODSS.
 fn create_platform_info() -> Arc<Mutex<PlatformInfo>> {
-    fn init_platform_info(platform_info: &Arc<Mutex<PlatformInfo>>) {
-        let platforms_res = trackdb_client::get_platforms();
-        if platforms_res.is_empty() {
-            eprintln!("warning: no platforms returned from TrackingDB/ODSS");
-        } else {
-            println!(
-                "Platform cache initialized with {} platforms found in TrackingDB/ODSS",
-                platforms_res.len()
-            );
-            platform_info.lock().unwrap().set_platforms(platforms_res);
-        }
-    }
-
     let platform_info = Arc::new(Mutex::new(PlatformInfo::default()));
-    init_platform_info(&platform_info);
+    let platforms_res = trackdb_client::get_platforms();
+    if platforms_res.is_empty() {
+        eprintln!("warning: no platforms returned from TrackingDB/ODSS");
+    } else {
+        platform_info
+            .lock()
+            .map(|mut platform_info| {
+                println!(
+                    "initializing platform cache with {} platforms found in TrackingDB/ODSS",
+                    platforms_res.len()
+                );
+                platform_info.set_platforms(platforms_res);
+            })
+            .unwrap_or_else(|e| {
+                eprintln!("unexpected: failed to acquire platform_info lock: {}", e);
+            })
+    }
     platform_info
 }
 
