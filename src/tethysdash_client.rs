@@ -34,7 +34,7 @@ pub fn post_xevent(tethysdash_config: &TethysDashConfig, xevent: XEvent) -> Resu
             format!("Bearer {}", tethysdash_config.api_key),
         )
         .json(&json)
-        .unwrap();
+        .map_err(|e| format!("Failed to build request: {}", e))?;
 
     match request.send() {
         Ok(res) => {
@@ -44,7 +44,7 @@ pub fn post_xevent(tethysdash_config: &TethysDashConfig, xevent: XEvent) -> Resu
                 Err(format!(
                     "POST {endpoint}: response: status={}, body={}",
                     res.status(),
-                    res.text().unwrap_or("(none)".to_string())
+                    res.text().unwrap_or_else(|_| "(none)".to_string())
                 ))
             }
         }
