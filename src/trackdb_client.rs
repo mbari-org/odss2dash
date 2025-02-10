@@ -1,7 +1,6 @@
 use crate::config;
 
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::time::Duration;
 use utoipa::ToSchema;
 
@@ -47,12 +46,12 @@ fn make_get_request<T>(endpoint: &str) -> Option<T>
 where
     T: std::fmt::Debug + for<'de> serde::Deserialize<'de>,
 {
-    make_get_request_with_params(endpoint, &HashMap::default())
+    make_get_request_with_params(endpoint, &Vec::new())
 }
 
 fn make_get_request_with_params<'a, T>(
     endpoint: &str,
-    params: &HashMap<&'a str, String>,
+    params: &Vec<(&'a str, String)>,
 ) -> Option<T>
 where
     T: std::fmt::Debug + for<'de> serde::Deserialize<'de>,
@@ -61,20 +60,19 @@ where
     let url = get_url(endpoint);
     let mut req = create_agent().get(&url);
     if !params.is_empty() {
-        let vec: Vec<(&'a str, String)> = params.iter().map(|(&k, v)| (k, v.clone())).collect();
-        req = req.query_pairs(vec)
+        req = req.query_pairs(params.clone())
     }
     let mut response = match req.call() {
         Ok(res) => res,
         Err(e) => {
-            log::error!("GET request failed: {}", e);
+            log::error!("GET {endpoint} params={:#?}: request failed: {}", params, e);
             return None;
         }
     };
     let res = match response.body_mut().read_json::<T>() {
         Ok(parsed) => parsed,
         Err(e) => {
-            log::error!("Failed to parse response JSON: {}", e);
+            log::error!("GET {endpoint}: failed to parse response JSON: {}", e);
             return None;
         }
     };
@@ -141,20 +139,20 @@ fn create_params_for_positions<'a>(
     last_number_of_fixes: Option<u32>,
     start_date: Option<String>,
     end_date: Option<String>,
-) -> HashMap<&'a str, String> {
+) -> Vec<(&'a str, String)> {
     let config = config::get_config();
 
-    let mut params = HashMap::new();
-    params.insert("platformID", platform_id.to_string());
-    params.insert("returnFormat", "json".to_string());
-    params.insert("returnSRS", "4326".to_string());
+    let mut params = Vec::new();
+    params.push(("platformID", platform_id.to_string()));
+    params.push(("returnFormat", "json".to_string()));
+    params.push(("returnSRS", "4326".to_string()));
 
     if start_date.is_some() || end_date.is_some() {
         if let Some(start_date) = start_date {
-            params.insert("startDate", start_date);
+            params.push(("startDate", start_date));
         }
         if let Some(end_date) = end_date {
-            params.insert("endDate", end_date);
+            params.push(("endDate", end_date));
         }
     } else {
         let default = config.default_last_number_of_fixes;
@@ -168,7 +166,7 @@ fn create_params_for_positions<'a>(
             }
             None => default,
         };
-        params.insert("lastNumberOfFixes", last_number_of_fixes.to_string());
+        params.push(("lastNumberOfFixes", last_number_of_fixes.to_string()));
     }
     params
 }
