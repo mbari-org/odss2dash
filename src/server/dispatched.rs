@@ -90,23 +90,22 @@ async fn get_dispatched_platform(
     log::info!("get_dispatched_platform: platform_id={}", platform_id);
     let info = info.lock().unwrap();
     let mut dispatched_info = info.dispatched_info.lock().unwrap();
-    match dispatched_info.is_dispatched_platform(&platform_id) {
-        true => {
-            let platform_info = info.platform_info.lock().unwrap();
-            match platform_info.get_platform(&platform_id) {
-                Some(platform_res) => Json(platform_res).into_response(),
-                None => {
-                    log::debug!("Platform not found, so no longer dispatched: {platform_id}");
-                    dispatched_info.delete_platform_id(&platform_id);
-                    (
-                        StatusCode::NOT_FOUND,
-                        "Platform not found, so no longer dispatched",
-                    )
-                        .into_response()
-                }
+    if dispatched_info.is_dispatched_platform(&platform_id) {
+        let platform_info = info.platform_info.lock().unwrap();
+        match platform_info.get_platform(&platform_id) {
+            Some(platform_res) => Json(platform_res).into_response(),
+            None => {
+                log::debug!("Platform not found, so no longer dispatched: {platform_id}");
+                dispatched_info.delete_platform_id(&platform_id);
+                (
+                    StatusCode::NOT_FOUND,
+                    "Platform not found, so no longer dispatched",
+                )
+                    .into_response()
             }
         }
-        false => (StatusCode::NOT_FOUND, "Platform not found").into_response(),
+    } else {
+        (StatusCode::NOT_FOUND, "Platform not found").into_response()
     }
 }
 
