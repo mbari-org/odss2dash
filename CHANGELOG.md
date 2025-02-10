@@ -2,6 +2,7 @@
 
 2.3.4
 
+- use ureq (a pure Rust http client)
 - some code cleanup
 
 2.3.3

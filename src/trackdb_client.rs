@@ -31,85 +31,65 @@ struct TrackDataRes {
     pub coordinates: Vec<Vec<f64>>,
 }
 
-const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
-const TIMEOUT: Duration = Duration::from_secs(20);
+fn create_agent() -> ureq::Agent {
+    ureq::Agent::config_builder()
+        .timeout_global(Some(Duration::from_secs(20)))
+        .build()
+        .into()
+}
 
-fn create_get_request(endpoint: &str) -> attohttpc::RequestBuilder {
+fn get_url(endpoint: &str) -> String {
     let config = config::get_config();
-    let endpoint = format!("{}{endpoint}", config.odss_api);
-    attohttpc::get(endpoint)
-        .connect_timeout(CONNECT_TIMEOUT)
-        .timeout(TIMEOUT)
+    format!("{}{endpoint}", config.odss_api)
+}
+
+fn make_get_request<T>(endpoint: &str) -> Option<T>
+where
+    T: std::fmt::Debug + for<'de> serde::Deserialize<'de>,
+{
+    make_get_request_with_params(endpoint, &HashMap::default())
+}
+
+fn make_get_request_with_params<'a, T>(
+    endpoint: &str,
+    params: &HashMap<&'a str, String>,
+) -> Option<T>
+where
+    T: std::fmt::Debug + for<'de> serde::Deserialize<'de>,
+{
+    log::debug!("GET {endpoint}");
+    let url = get_url(endpoint);
+    let mut req = create_agent().get(&url);
+    if !params.is_empty() {
+        let vec: Vec<(&'a str, String)> = params.iter().map(|(&k, v)| (k, v.clone())).collect();
+        req = req.query_pairs(vec)
+    }
+    let mut response = match req.call() {
+        Ok(res) => res,
+        Err(e) => {
+            log::error!("GET request failed: {}", e);
+            return None;
+        }
+    };
+    let res = match response.body_mut().read_json::<T>() {
+        Ok(parsed) => parsed,
+        Err(e) => {
+            log::error!("Failed to parse response JSON: {}", e);
+            return None;
+        }
+    };
+    log::debug!("GET {endpoint} => {:?}", res);
+    Some(res)
 }
 
 pub fn get_platforms() -> Vec<PlatformRes> {
-    log::debug!("get_platforms");
-
     let endpoint = "/platforms";
-    let request = create_get_request(endpoint);
-
-    match request.send() {
-        Ok(res) => {
-            if res.is_success() {
-                match res.json::<Vec<PlatformRes>>() {
-                    Ok(platforms_res) => {
-                        log::debug!("odss platforms_res = {:?}", platforms_res);
-                        platforms_res
-                    }
-                    Err(e) => {
-                        log::error!("could not parse response: {}", e);
-                        vec![]
-                    }
-                }
-            } else {
-                log::error!(
-                    "GET {endpoint}: response: status={}, body={}",
-                    res.status(),
-                    res.text().unwrap_or("(none)".to_string())
-                );
-                vec![]
-            }
-        }
-        Err(e) => {
-            log::error!("GET {endpoint}: error: {}", e);
-            vec![]
-        }
-    }
+    make_get_request(endpoint).unwrap_or_else(Vec::new)
 }
 
 pub fn get_platform(platform_id: &str) -> Option<PlatformRes> {
-    log::debug!("get_platform: platform_id='{}'", platform_id);
-
     let endpoint = format!("/platforms/{platform_id}");
-    let request = create_get_request(&endpoint);
-
-    match request.send() {
-        Ok(res) => {
-            if res.is_success() {
-                match res.json::<PlatformRes>() {
-                    Ok(platform_res) => {
-                        log::debug!("odss platform_res = {:?}", platform_res);
-                        Some(platform_res)
-                    }
-                    Err(e) => {
-                        log::error!("could not parse response: {}", e);
-                        None
-                    }
-                }
-            } else {
-                log::error!(
-                    "GET {endpoint} response: status={}, body={}",
-                    res.status(),
-                    res.text().unwrap_or("(none)".to_string())
-                );
-                None
-            }
-        }
-        Err(e) => {
-            log::error!("GET {endpoint} error: {}", e);
-            None
-        }
-    }
+    make_get_request(&endpoint)
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
@@ -149,34 +129,10 @@ pub fn get_positions(
     let params =
         create_params_for_positions(platform_id, last_number_of_fixes, start_date, end_date);
     let endpoint = "/tracks";
-    let request = create_get_request(endpoint).params(&params);
-    match request.send() {
-        Ok(res) => {
-            if res.is_success() {
-                match res.json::<TrackRes>() {
-                    Ok(track_res) => track_res_to_positions_response(
-                        platform_id,
-                        last_number_of_fixes,
-                        track_res,
-                    ),
-                    Err(e) => {
-                        log::error!("could not parse response: {}", e);
-                        None
-                    }
-                }
-            } else {
-                log::warn!(
-                    "GET {endpoint} params={params:?}: response: status={}, body={}",
-                    res.status(),
-                    res.text().unwrap_or("(none)".to_string())
-                );
-                None
-            }
-        }
-        Err(e) => {
-            log::error!("GET {endpoint} params={params:?}: error: {}", e);
-            None
-        }
+    if let Some(track_res) = make_get_request_with_params::<TrackRes>(endpoint, &params) {
+        track_res_to_positions_response(platform_id, last_number_of_fixes, track_res)
+    } else {
+        None
     }
 }
 

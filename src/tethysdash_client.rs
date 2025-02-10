@@ -15,8 +15,12 @@ pub struct XEvent {
     pub icon_url: Option<String>,
 }
 
-const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
-const TIMEOUT: Duration = Duration::from_secs(20);
+fn create_agent() -> ureq::Agent {
+    ureq::Agent::config_builder()
+        .timeout_global(Some(Duration::from_secs(20)))
+        .build()
+        .into()
+}
 
 /// Notifies an XEvent to a TethysDash instance.
 pub fn post_xevent(tethysdash_config: &TethysDashConfig, xevent: XEvent) -> Result<(), String> {
@@ -24,30 +28,19 @@ pub fn post_xevent(tethysdash_config: &TethysDashConfig, xevent: XEvent) -> Resu
         "Posting XEvent to TethysDash instance: '{}'",
         tethysdash_config.name
     );
+
     let json = serde_json::json!(&xevent);
-    let endpoint = format!("{}/async/xevent", tethysdash_config.api.clone());
-    let request = attohttpc::post(&endpoint)
-        .connect_timeout(CONNECT_TIMEOUT)
-        .timeout(TIMEOUT)
+    let endpoint = format!("{}/async/xevent", tethysdash_config.api);
+    let request = create_agent()
+        .post(&endpoint)
         .header(
             "Authorization",
-            format!("Bearer {}", tethysdash_config.api_key),
+            &format!("Bearer {}", tethysdash_config.api_key),
         )
-        .json(&json)
-        .map_err(|e| format!("Failed to build request: {}", e))?;
+        .send_json(json);
 
-    match request.send() {
-        Ok(res) => {
-            if res.is_success() {
-                Ok(())
-            } else {
-                Err(format!(
-                    "POST {endpoint}: response: status={}, body={}",
-                    res.status(),
-                    res.text().unwrap_or_else(|_| "(none)".to_string())
-                ))
-            }
-        }
+    match request {
+        Ok(_) => Ok(()),
         Err(e) => Err(format!("POST {endpoint}: error: {}", e)),
     }
 }
