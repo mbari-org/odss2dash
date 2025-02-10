@@ -59,17 +59,29 @@ where
     if !params.is_empty() {
         req = req.query_pairs(params.clone())
     }
+
+    let log_prefix = || {
+        format!(
+            "GET {endpoint}({})",
+            params
+                .iter()
+                .map(|(k, v)| format!("{k}={v}"))
+                .collect::<Vec<_>>()
+                .join(", "),
+        )
+    };
+
     let mut response = match req.call() {
         Ok(res) => res,
         Err(e) => {
-            log::error!("GET {endpoint} params={:#?}: request failed: {}", params, e);
+            log::error!("{}: request failed: {}", log_prefix(), e);
             return None;
         }
     };
     let res = match response.body_mut().read_json::<T>() {
         Ok(parsed) => parsed,
         Err(e) => {
-            log::error!("GET {endpoint}: failed to parse response JSON: {}", e);
+            log::error!("{}: failed to parse response JSON: {}", log_prefix(), e);
             return None;
         }
     };
