@@ -1,5 +1,10 @@
 2025-02
 
+2.3.4
+
+- use ureq
+- some code cleanup
+
 2.3.3
 
 - Maintenance update

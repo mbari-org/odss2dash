@@ -151,11 +151,11 @@ impl Dispatcher {
         if !new_to_report.is_empty() {
             new_to_report.sort_by(|a, b| a.time_ms.cmp(&b.time_ms));
             print!("    {} ({}): new positions ", platform.name, platform._id);
-            std::io::stdout().flush().unwrap();
+            flush_stdout();
 
             for position in &new_to_report {
                 print!(".");
-                std::io::stdout().flush().unwrap();
+                flush_stdout();
                 self.report_position(reported_map, platform, position);
 
                 let new_last_ts_reported = position.time_ms;
@@ -204,4 +204,14 @@ fn load_reported() -> ReportedMap {
 fn save_reported(reported_map: &ReportedMap) {
     let f = File::create(REPORTED_PATH).unwrap();
     serde_json::to_writer_pretty(f, reported_map).unwrap();
+}
+
+fn flush_stdout() {
+    flush(&mut std::io::stdout());
+}
+
+fn flush<W: Write>(writer: &mut W) {
+    if let Err(e) = writer.flush() {
+        log::warn!("Failed to flush output: {}", e);
+    }
 }

@@ -1,7 +1,6 @@
 use crate::config;
 
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::time::Duration;
 use utoipa::ToSchema;
 
@@ -31,85 +30,75 @@ struct TrackDataRes {
     pub coordinates: Vec<Vec<f64>>,
 }
 
-const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
-const TIMEOUT: Duration = Duration::from_secs(20);
+fn create_agent() -> ureq::Agent {
+    ureq::Agent::config_builder()
+        .timeout_global(Some(Duration::from_secs(20)))
+        .build()
+        .into()
+}
 
-fn create_get_request(endpoint: &str) -> attohttpc::RequestBuilder {
+fn get_url(endpoint: &str) -> String {
     let config = config::get_config();
-    let endpoint = format!("{}{endpoint}", config.odss_api);
-    attohttpc::get(endpoint)
-        .connect_timeout(CONNECT_TIMEOUT)
-        .timeout(TIMEOUT)
+    format!("{}{endpoint}", config.odss_api)
+}
+
+fn make_get_request<T>(endpoint: &str) -> Option<T>
+where
+    T: std::fmt::Debug + for<'de> serde::Deserialize<'de>,
+{
+    make_get_request_with_params(endpoint, &Vec::new())
+}
+
+fn make_get_request_with_params<'a, T>(endpoint: &str, params: &Vec<(&'a str, String)>) -> Option<T>
+where
+    T: std::fmt::Debug + for<'de> serde::Deserialize<'de>,
+{
+    let log_prefix = || {
+        let params = if params.is_empty() {
+            "".to_string()
+        } else {
+            format!(
+                "({})",
+                params
+                    .iter()
+                    .map(|(k, v)| format!("{k}={v}"))
+                    .collect::<Vec<_>>()
+                    .join(", "),
+            )
+        };
+        format!("GET {endpoint}{params}")
+    };
+
+    log::debug!("{}", log_prefix());
+    let url = get_url(endpoint);
+    let req = create_agent().get(&url).query_pairs(params.clone());
+
+    let mut response = match req.call() {
+        Ok(res) => res,
+        Err(e) => {
+            log::error!("{}: request failed: {}", log_prefix(), e);
+            return None;
+        }
+    };
+    let res = match response.body_mut().read_json::<T>() {
+        Ok(parsed) => parsed,
+        Err(e) => {
+            log::error!("{}: failed to parse response JSON: {}", log_prefix(), e);
+            return None;
+        }
+    };
+    log::debug!("GET {endpoint} => {:?}", res);
+    Some(res)
 }
 
 pub fn get_platforms() -> Vec<PlatformRes> {
-    log::debug!("get_platforms");
-
     let endpoint = "/platforms";
-    let request = create_get_request(endpoint);
-
-    match request.send() {
-        Ok(res) => {
-            if res.is_success() {
-                match res.json::<Vec<PlatformRes>>() {
-                    Ok(platforms_res) => {
-                        log::debug!("odss platforms_res = {:?}", platforms_res);
-                        platforms_res
-                    }
-                    Err(e) => {
-                        log::error!("could not parse response: {}", e);
-                        vec![]
-                    }
-                }
-            } else {
-                log::error!(
-                    "GET {endpoint}: response: status={}, body={}",
-                    res.status(),
-                    res.text().unwrap_or("(none)".to_string())
-                );
-                vec![]
-            }
-        }
-        Err(e) => {
-            log::error!("GET {endpoint}: error: {}", e);
-            vec![]
-        }
-    }
+    make_get_request(endpoint).unwrap_or_else(Vec::new)
 }
 
 pub fn get_platform(platform_id: &str) -> Option<PlatformRes> {
-    log::debug!("get_platform: platform_id='{}'", platform_id);
-
     let endpoint = format!("/platforms/{platform_id}");
-    let request = create_get_request(&endpoint);
-
-    match request.send() {
-        Ok(res) => {
-            if res.is_success() {
-                match res.json::<PlatformRes>() {
-                    Ok(platform_res) => {
-                        log::debug!("odss platform_res = {:?}", platform_res);
-                        Some(platform_res)
-                    }
-                    Err(e) => {
-                        log::error!("could not parse response: {}", e);
-                        None
-                    }
-                }
-            } else {
-                log::error!(
-                    "GET {endpoint} response: status={}, body={}",
-                    res.status(),
-                    res.text().unwrap_or("(none)".to_string())
-                );
-                None
-            }
-        }
-        Err(e) => {
-            log::error!("GET {endpoint} error: {}", e);
-            None
-        }
-    }
+    make_get_request(&endpoint)
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
@@ -149,34 +138,10 @@ pub fn get_positions(
     let params =
         create_params_for_positions(platform_id, last_number_of_fixes, start_date, end_date);
     let endpoint = "/tracks";
-    let request = create_get_request(endpoint).params(&params);
-    match request.send() {
-        Ok(res) => {
-            if res.is_success() {
-                match res.json::<TrackRes>() {
-                    Ok(track_res) => track_res_to_positions_response(
-                        platform_id,
-                        last_number_of_fixes,
-                        track_res,
-                    ),
-                    Err(e) => {
-                        log::error!("could not parse response: {}", e);
-                        None
-                    }
-                }
-            } else {
-                log::warn!(
-                    "GET {endpoint} params={params:?}: response: status={}, body={}",
-                    res.status(),
-                    res.text().unwrap_or("(none)".to_string())
-                );
-                None
-            }
-        }
-        Err(e) => {
-            log::error!("GET {endpoint} params={params:?}: error: {}", e);
-            None
-        }
+    if let Some(track_res) = make_get_request_with_params::<TrackRes>(endpoint, &params) {
+        track_res_to_positions_response(platform_id, last_number_of_fixes, track_res)
+    } else {
+        None
     }
 }
 
@@ -185,20 +150,20 @@ fn create_params_for_positions<'a>(
     last_number_of_fixes: Option<u32>,
     start_date: Option<String>,
     end_date: Option<String>,
-) -> HashMap<&'a str, String> {
+) -> Vec<(&'a str, String)> {
     let config = config::get_config();
 
-    let mut params = HashMap::new();
-    params.insert("platformID", platform_id.to_string());
-    params.insert("returnFormat", "json".to_string());
-    params.insert("returnSRS", "4326".to_string());
+    let mut params = Vec::new();
+    params.push(("platformID", platform_id.to_string()));
+    params.push(("returnFormat", "json".to_string()));
+    params.push(("returnSRS", "4326".to_string()));
 
     if start_date.is_some() || end_date.is_some() {
         if let Some(start_date) = start_date {
-            params.insert("startDate", start_date);
+            params.push(("startDate", start_date));
         }
         if let Some(end_date) = end_date {
-            params.insert("endDate", end_date);
+            params.push(("endDate", end_date));
         }
     } else {
         let default = config.default_last_number_of_fixes;
@@ -212,7 +177,7 @@ fn create_params_for_positions<'a>(
             }
             None => default,
         };
-        params.insert("lastNumberOfFixes", last_number_of_fixes.to_string());
+        params.push(("lastNumberOfFixes", last_number_of_fixes.to_string()));
     }
     params
 }
