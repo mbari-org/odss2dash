@@ -53,23 +53,25 @@ fn make_get_request_with_params<'a, T>(endpoint: &str, params: &Vec<(&'a str, St
 where
     T: std::fmt::Debug + for<'de> serde::Deserialize<'de>,
 {
-    log::debug!("GET {endpoint}");
-    let url = get_url(endpoint);
-    let mut req = create_agent().get(&url);
-    if !params.is_empty() {
-        req = req.query_pairs(params.clone())
-    }
-
     let log_prefix = || {
-        format!(
-            "GET {endpoint}({})",
-            params
-                .iter()
-                .map(|(k, v)| format!("{k}={v}"))
-                .collect::<Vec<_>>()
-                .join(", "),
-        )
+        let params = if params.is_empty() {
+            "".to_string()
+        } else {
+            format!(
+                "({})",
+                params
+                    .iter()
+                    .map(|(k, v)| format!("{k}={v}"))
+                    .collect::<Vec<_>>()
+                    .join(", "),
+            )
+        };
+        format!("GET {endpoint}{params}")
     };
+
+    log::debug!("{}", log_prefix());
+    let url = get_url(endpoint);
+    let req = create_agent().get(&url).query_pairs(params.clone());
 
     let mut response = match req.call() {
         Ok(res) => res,
