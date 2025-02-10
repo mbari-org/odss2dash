@@ -49,10 +49,7 @@ where
     make_get_request_with_params(endpoint, &Vec::new())
 }
 
-fn make_get_request_with_params<'a, T>(
-    endpoint: &str,
-    params: &Vec<(&'a str, String)>,
-) -> Option<T>
+fn make_get_request_with_params<'a, T>(endpoint: &str, params: &Vec<(&'a str, String)>) -> Option<T>
 where
     T: std::fmt::Debug + for<'de> serde::Deserialize<'de>,
 {
