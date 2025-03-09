@@ -1,5 +1,6 @@
 mod dispatched;
 pub mod health;
+mod swagger;
 mod trackdb;
 
 use crate::config;
@@ -15,7 +16,6 @@ use tokio::net::TcpListener;
 use tokio::signal;
 use tower_http::cors::CorsLayer;
 use utoipa::OpenApi;
-use utoipa_swagger_ui::SwaggerUi;
 
 pub fn launch_server(
     platform_info: Arc<Mutex<PlatformInfo>>,
@@ -80,7 +80,7 @@ async fn launch(
                 .merge(dispatched_router)
                 .merge(trackdb_router),
         )
-        .merge(create_swagger_router())
+        .merge(swagger::create_swagger_router())
         .layer(cors); // "first add your routes [...] and then call layer"
 
     let config = config::get_config();
@@ -88,6 +88,13 @@ async fn launch(
     let address = SocketAddr::from((Ipv4Addr::UNSPECIFIED, config.port));
     let listener = TcpListener::bind(address.to_string()).await?;
     println!("Server listening on {}", address);
+
+    {
+        let x = &config.external_url;
+        println!("API     : {x}/api");
+        println!("Doc     : {x}/apidoc/");
+        println!("Spec    : {x}/api-docs/openapi.json");
+    }
 
     axum::serve(listener, app.into_make_service())
         .with_graceful_shutdown(shutdown_signal())
@@ -98,45 +105,6 @@ async fn launch(
     }
 
     Ok(())
-}
-
-fn create_swagger_router() -> SwaggerUi {
-    let config = config::get_config();
-
-    let api_url = format!("{}/api", config.external_url);
-
-    let mut doc = ApiDoc::openapi();
-    doc.servers = Some(vec![utoipa::openapi::Server::new(&api_url)]);
-
-    // For appropriate dispatch of SwaggerUI on deployed site:
-
-    // (a) this value good for both local and deployed site:
-    let apidoc_rel = "/apidoc";
-
-    let json_rel = if config.external_url.ends_with("/odss2dash") {
-        // (b) for deployed site, need to prefix with /odss2dash/
-        // per proxy setting on target server:
-        "/odss2dash/api-docs/openapi.json"
-    } else {
-        "/api-docs/openapi.json"
-    };
-
-    // (c) use the value in (b) for Config::from(), so that the correct url
-    // is used by swagger-ui app (setting in swagger-initializer.js):
-    let swagger_ui_config = utoipa_swagger_ui::Config::from(json_rel)
-        .display_operation_id(true)
-        .use_base_layout();
-
-    let swagger_ui = SwaggerUi::new(apidoc_rel)
-        // (d) as with (a), value here is good in general:
-        .url("/api-docs/openapi.json", doc)
-        .config(swagger_ui_config);
-
-    println!("api : {}", &api_url);
-    println!("doc : {}/apidoc/", config.external_url);
-    println!("spec: {}/api-docs/openapi.json", config.external_url);
-
-    swagger_ui
 }
 
 // https://github.com/tokio-rs/axum/blob/6c9cabf985236e3775fc07b3f54d639553fd1424/examples/graceful-shutdown/src/main.rs#L50

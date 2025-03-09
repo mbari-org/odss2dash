@@ -1,5 +1,9 @@
 2025-03
 
+2.4.0
+
+- Internal: move create_swagger_router to a module
+
 2.3.5
 
 - Maintenance update

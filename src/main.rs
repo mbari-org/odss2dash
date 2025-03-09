@@ -119,13 +119,13 @@ fn check_config() {
 }
 
 fn get_platforms() {
-    println!("Getting platforms...");
+    log::info!("Getting platforms...");
     let platforms_res = trackdb_client::get_platforms();
     println!("{}", serde_json::to_string_pretty(&platforms_res).unwrap());
 }
 
 fn get_platform(platform_id: &str) {
-    println!("Getting platform...");
+    log::info!("Getting platform...");
     let platform_res = trackdb_client::get_platform(platform_id);
     if let Some(platform_res) = platform_res {
         println!("{}", serde_json::to_string_pretty(&platform_res).unwrap());
