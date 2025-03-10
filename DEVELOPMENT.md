@@ -47,12 +47,13 @@ j serve --no-dispatch
 ```
 cargo run -- serve --no-dispatch
 ...
-Platform cache initialized with 292 platforms found in TrackingDB/ODSS
+Initializing platform cache with 309 platforms found in TrackingDB/ODSS
 Loading './dispatched.json'
-api : http://localhost:3033/api
-doc : http://localhost:3033/apidoc/
-spec: http://localhost:3033/api-docs/openapi.json
 Server listening on 0.0.0.0:3033
+OpenApi : http://localhost:3033/api-docs/openapi.json
+API     : http://localhost:3033/api
+Swagger : http://localhost:3033/apidoc/
+Rapidoc : http://localhost:3033/rapidoc/
 ```
 
 Run `j` to see the list of recipes.

@@ -43,7 +43,7 @@ fn create_platform_info() -> Arc<Mutex<PlatformInfo>> {
             .lock()
             .map(|mut platform_info| {
                 println!(
-                    "initializing platform cache with {} platforms found in TrackingDB/ODSS",
+                    "Initializing platform cache with {} platforms found in TrackingDB/ODSS",
                     platforms_res.len()
                 );
                 platform_info.set_platforms(platforms_res);

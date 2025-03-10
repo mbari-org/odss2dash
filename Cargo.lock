@@ -1056,6 +1056,7 @@ dependencies = [
  "tower-http",
  "ureq",
  "utoipa",
+ "utoipa-rapidoc",
  "utoipa-swagger-ui",
 ]
 
@@ -1884,6 +1885,18 @@ dependencies = [
  "quote",
  "regex",
  "syn",
+]
+
+[[package]]
+name = "utoipa-rapidoc"
+version = "6.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e5f8f5abd341cce16bb4f09a8bafc087d4884a004f25fb980e538d51d6501dab"
+dependencies = [
+ "axum",
+ "serde",
+ "serde_json",
+ "utoipa",
 ]
 
 [[package]]
