@@ -143,13 +143,13 @@ fn get_openapi_router(paths: &mut Vec<(&str, &str)>) -> Router {
     };
 
     let swagger_router = {
-        let swagger_path = "/apidoc";
+        let swagger_path = "/apidoc/";
         paths.push(("Swagger", swagger_path));
         swagger::create_swagger_router(&json_rel, swagger_path)
     };
 
     let rapidoc_router = {
-        let rapidoc_path = "/rapidoc";
+        let rapidoc_path = "/rapidoc/";
         paths.push(("Rapidoc", rapidoc_path));
         rapidoc::create_rapidoc_router(&json_rel, rapidoc_path)
     };
