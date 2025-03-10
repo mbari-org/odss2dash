@@ -130,16 +130,28 @@ fn get_openapi_router(paths: &mut Vec<(&str, &str)>) -> Router {
         )
     };
 
+    // json_rel for appropriate dispatch of doc UIs on deployed site:
+    let json_rel = {
+        let config = config::get_config();
+        if config.external_url.ends_with("/odss2dash") {
+            // For deployed site, need to prefix with /odss2dash/
+            // per proxy setting on target server:
+            format!("/odss2dash{openapi_json_path}")
+        } else {
+            openapi_json_path.to_string()
+        }
+    };
+
     let swagger_router = {
         let swagger_path = "/apidoc";
         paths.push(("Swagger", swagger_path));
-        swagger::create_swagger_router(openapi_json_path, swagger_path)
+        swagger::create_swagger_router(&json_rel, swagger_path)
     };
 
     let rapidoc_router = {
         let rapidoc_path = "/rapidoc";
         paths.push(("Rapidoc", rapidoc_path));
-        rapidoc::create_rapidoc_router(openapi_json_path, rapidoc_path)
+        rapidoc::create_rapidoc_router(&json_rel, rapidoc_path)
     };
 
     Router::new()
