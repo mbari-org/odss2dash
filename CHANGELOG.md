@@ -2,6 +2,7 @@
 
 2.4.0
 
+- Refactored openapi related routers, and added rapidoc
 - Internal: move create_swagger_router to a module
 
 2.3.5
