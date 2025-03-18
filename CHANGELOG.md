@@ -1,5 +1,9 @@
 2025-03
 
+2.4.1
+
+- Maintenance update (dependabot fix).
+
 2.4.0
 
 - Refactored openapi related routers, and added rapidoc
