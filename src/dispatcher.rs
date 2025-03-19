@@ -117,10 +117,13 @@ impl Dispatcher {
             .get_platform_ids()
             .iter()
             .fold(vec![], |mut acc, id| {
-                if let Some(platform) = platform_info.get_platform(id) {
-                    acc.push(platform);
-                } else {
-                    eprintln!("No platform by id: {id}");
+                match platform_info.get_platform(id) {
+                    Some(platform) => {
+                        acc.push(platform);
+                    }
+                    _ => {
+                        eprintln!("No platform by id: {id}");
+                    }
                 }
                 acc
             })
