@@ -1,3 +1,9 @@
+2025-04
+
+2.4.3
+
+- Maintenance update (dependabot fix related to tokio).
+
 2025-03
 
 2.4.1
