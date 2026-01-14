@@ -1,3 +1,13 @@
+2026-01
+
+2.4.5
+
+- Incremented limit to parse JSON response in trackdb_client.
+  Multiple errors in the log were exposed today with platform `669811c71c6e31522c529a7f` (D_Packard),
+  indicating that the (default) 10MB limit was exceeded, and these rendered the service unusable.
+  As a quick solution, incremented limit to 30MB.
+  
+
 2025-04
 
 2.4.4

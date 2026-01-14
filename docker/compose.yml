@@ -15,6 +15,12 @@ services:
       - RUST_LOG=info
       - RUST_BACKTRACE=0
 
+    healthcheck:
+      test: ["CMD", "/app/odss2dash", "health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
     command: serve
 
     ## for any immediate initial notifications:

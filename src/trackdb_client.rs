@@ -80,7 +80,13 @@ where
             return None;
         }
     };
-    let res = match response.body_mut().read_json::<T>() {
+
+    let res = match response
+        .body_mut()
+        .with_config()
+        .limit(30 * 1024 * 1024)
+        .read_json::<T>()
+    {
         Ok(parsed) => parsed,
         Err(e) => {
             log::error!("{}: failed to parse response JSON: {}", log_prefix(), e);
