@@ -1,3 +1,9 @@
+2026-02
+
+2.4.6
+
+- Maintenance update (fix to https://github.com/mbari-org/odss2dash/security/dependabot/12).
+
 2026-01
 
 2.4.5
@@ -7,12 +13,6 @@
   indicating that the (default) 10MB limit was exceeded, and these rendered the service unusable.
   As a quick solution, incremented limit to 30MB.
   
-
-2025-04
-
-2.4.4
-
-- Maintenance update (dependabot fix related to tokio).
 
 2025-03
 
