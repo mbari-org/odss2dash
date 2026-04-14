@@ -1,3 +1,9 @@
+2026-04
+
+2.4.7
+
+- Maintenance update (<https://github.com/mbari-org/odss2dash/pull/12>).
+
 2026-02
 
 2.4.6
