@@ -1,5 +1,6 @@
 mod dispatched;
 pub mod health;
+mod metrics;
 mod rapidoc;
 mod swagger;
 mod trackdb;
@@ -9,6 +10,7 @@ use crate::dispatched_info::DispatchedInfo;
 use crate::platform_info::PlatformInfo;
 use crate::trackdb_client;
 
+use crate::server::metrics::create_metrics_router;
 use axum::Router;
 use std::error::Error;
 use std::net::{Ipv4Addr, SocketAddr};
@@ -76,20 +78,27 @@ async fn launch(
         let trackdb_router = trackdb::create_trackdb_router(Arc::clone(&platform_info));
         let api_path = "/api";
         paths.push(("API", api_path));
-        Router::new().nest(
-            api_path,
-            Router::new()
-                .merge(health_router)
-                .merge(dispatched_router)
-                .merge(trackdb_router),
-        )
+        let cors = CorsLayer::permissive(); // TODO not so permissive
+        Router::new()
+            .nest(
+                api_path,
+                Router::new()
+                    .merge(health_router)
+                    .merge(dispatched_router)
+                    .merge(trackdb_router),
+            )
+            .merge(get_openapi_router(&mut paths))
+            .layer(cors)
+    };
+
+    let metrics_router = {
+        let metrics_path = "/metrics";
+        paths.push(("Metrics", metrics_path));
+        create_metrics_router(metrics_path)
     };
 
     // The complete app router:
-    let app = {
-        let cors = CorsLayer::permissive(); // TODO not so permissive
-        api_router.merge(get_openapi_router(&mut paths)).layer(cors)
-    };
+    let app = api_router.merge(metrics_router);
 
     // Start the server:
     let config = config::get_config();
