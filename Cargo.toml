@@ -1,6 +1,6 @@
 [package]
 name = "odss2dash"
-version = "2.4.7"
+version = "2.4.8"
 authors = [
     "Carlos A. Rueda <carueda@mbari.org>",
 ]
@@ -33,17 +33,17 @@ hyper = { version = "1.1.0", features = ["full"] }
 log = "0.4"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.64"
-sysinfo = "0.33"
+sysinfo = "0.39.0"
 tokio = { version = "1", features = ["full"] }
 tower-http = { version = "0.6.2", features = ["cors"] }
-toml = "0.8.6"
+toml = "1.1.2+spec-1.1.0"
 ureq = { version = "3", features = ["json"] }
 utoipa = { version = "5.3.1", features = ["axum_extras"] }
 utoipa-rapidoc = { version = "6", features = ["axum"] }
 utoipa-swagger-ui = { version = "9", features = ["axum"] }
 
 [dev-dependencies]
-axum-test = "17.0.1"
+axum-test = "20.0.0"
 pretty_assertions = "1.4.0"
 
 [profile.release]

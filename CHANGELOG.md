@@ -1,3 +1,9 @@
+2026-05
+
+2.4.8
+
+- Update some dependencies.
+
 2026-04
 
 2.4.7

@@ -195,7 +195,7 @@ mod tests {
         let platform_info = Arc::new(Mutex::new(PlatformInfo::default()));
         let app = create_trackdb_router(platform_info).into_make_service();
 
-        TestServer::new(app).unwrap()
+        TestServer::new(app)
     }
 
     #[tokio::test]

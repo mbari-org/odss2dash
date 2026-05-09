@@ -152,7 +152,7 @@ impl Dispatcher {
             .collect::<Vec<Position>>();
 
         if !new_to_report.is_empty() {
-            new_to_report.sort_by(|a, b| a.time_ms.cmp(&b.time_ms));
+            new_to_report.sort_by_key(|a| a.time_ms);
             print!("    {} ({}): new positions ", platform.name, platform._id);
             flush_stdout();
 
