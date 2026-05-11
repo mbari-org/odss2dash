@@ -2,6 +2,7 @@
 
 2.4.8
 
+- Add /metrics endpoint.
 - Update some dependencies.
 
 2026-04
