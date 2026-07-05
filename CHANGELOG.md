@@ -1,3 +1,10 @@
+2026-07
+
+2.4.9
+
+- Log token expiration at publisher construction and show it in `check-config` command.
+- Dependency updates.
+
 2026-05
 
 2.4.8

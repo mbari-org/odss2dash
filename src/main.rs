@@ -115,7 +115,41 @@ fn main() {
 }
 
 fn check_config() {
-    println!("{}", config::get_config().redacted().json_string());
+    let config = config::get_config();
+    println!("{}", config.redacted().json_string());
+
+    println!("\nTethysDash API key expirations:");
+    let now = chrono::Utc::now();
+    let soon = now + chrono::TimeDelta::days(30);
+    for td in &config.tethysdashes {
+        print!("  {:10} : ", td.name);
+        match publisher::jwt_expiration(&td.api_key) {
+            Some(exp) if exp <= now => {
+                println!(
+                    "EXPIRED at {} ({} ago)",
+                    exp.to_rfc3339(),
+                    publisher::format_time_delta(now - exp)
+                );
+            }
+            Some(exp) if exp <= soon => {
+                println!(
+                    "WARNING: expires soon, at {} (in {})",
+                    exp.to_rfc3339(),
+                    publisher::format_time_delta(exp - now)
+                );
+            }
+            Some(exp) => {
+                println!(
+                    "expires at {} (in {})",
+                    exp.to_rfc3339(),
+                    publisher::format_time_delta(exp - now)
+                );
+            }
+            None => {
+                println!("could not determine API key expiration");
+            }
+        }
+    }
 }
 
 fn get_platforms() {
