@@ -1,8 +1,10 @@
 mod config;
 mod dispatched_info;
 mod dispatcher;
+mod http;
 mod platform_info;
 mod publisher;
+mod rt;
 mod serve_dispatch;
 mod server;
 mod tethysdash_client;
@@ -154,13 +156,13 @@ fn check_config() {
 
 fn get_platforms() {
     log::info!("Getting platforms...");
-    let platforms_res = trackdb_client::get_platforms();
+    let platforms_res = rt::block_on(trackdb_client::get_platforms());
     println!("{}", serde_json::to_string_pretty(&platforms_res).unwrap());
 }
 
 fn get_platform(platform_id: &str) {
     log::info!("Getting platform...");
-    let platform_res = trackdb_client::get_platform(platform_id);
+    let platform_res = rt::block_on(trackdb_client::get_platform(platform_id));
     if let Some(platform_res) = platform_res {
         println!("{}", serde_json::to_string_pretty(&platform_res).unwrap());
     } else {
@@ -169,7 +171,7 @@ fn get_platform(platform_id: &str) {
 }
 
 fn get_positions(platform_id: &str) {
-    let pos_res = trackdb_client::get_positions_per_config(platform_id);
+    let pos_res = rt::block_on(trackdb_client::get_positions_per_config(platform_id));
     if let Some(pos_res) = pos_res {
         println!("{}", serde_json::to_string_pretty(&pos_res).unwrap());
     } else {

@@ -51,15 +51,20 @@ async fn get_platforms(
     log::info!("get_platforms query: {:?}", query);
 
     if query.refresh == Some(true) {
-        let mut platform_info = platform_info.lock().unwrap();
-        let platforms_res = trackdb_client::get_platforms();
-        if platforms_res.is_empty() {
-            log::warn!("get_platforms: no platforms found; returning cached platforms");
-        } else {
-            log::info!("get_platforms: {} platforms found", platforms_res.len());
-            platform_info.set_platforms(platforms_res);
-        }
-        Json(platform_info.get_platforms())
+        // Note: the request to ODSS is made before taking the lock, so that a slow
+        // response does not hold up every other request needing the platform cache.
+        let platforms_res = trackdb_client::get_platforms().await;
+        let platforms = {
+            let mut platform_info = platform_info.lock().unwrap();
+            if platforms_res.is_empty() {
+                log::warn!("get_platforms: no platforms found; returning cached platforms");
+            } else {
+                log::info!("get_platforms: {} platforms found", platforms_res.len());
+                platform_info.set_platforms(platforms_res);
+            }
+            platform_info.get_platforms()
+        };
+        Json(platforms)
     } else {
         let platforms = {
             let platform_info = platform_info.lock().unwrap();
@@ -89,14 +94,13 @@ async fn get_platform(
     Path(platform_id): Path<String>,
 ) -> impl IntoResponse {
     log::info!("get_platform: platform_id={}", platform_id);
-    let mut platform_info = platform_info.lock().unwrap();
-    match trackdb_client::get_platform(&platform_id) {
+    match trackdb_client::get_platform(&platform_id).await {
         Some(platform_res) => {
             log::debug!(
                 "get_platform: updating cache for platform_id={}",
                 platform_id
             );
-            platform_info.update_platform(&platform_res);
+            platform_info.lock().unwrap().update_platform(&platform_res);
             Json(platform_res).into_response()
         }
         None => (StatusCode::NOT_FOUND, "Platform not found").into_response(),
@@ -152,7 +156,8 @@ async fn get_platform_positions(
         query.last_number_of_fixes,
         query.start_date,
         query.end_date,
-    );
+    )
+    .await;
     match positions {
         Some(pos_res) => {
             let platform_name = platform_info.get_platform(&platform_id).map(|p| p.name);

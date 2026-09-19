@@ -1,8 +1,9 @@
 use crate::config::TethysDashConfig;
+use crate::http;
+use crate::rt;
 use crate::trackdb_client::Position;
 
 use serde::Serialize;
-use std::time::Duration;
 
 #[derive(Serialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -15,31 +16,33 @@ pub struct XEvent {
     pub icon_url: Option<String>,
 }
 
-fn create_agent() -> ureq::Agent {
-    ureq::Agent::config_builder()
-        .timeout_global(Some(Duration::from_secs(20)))
-        .build()
-        .into()
+/// Notifies an XEvent to a TethysDash instance.
+///
+/// Synchronous wrapper for the dispatcher, which runs its own (blocking) loop
+/// on a dedicated thread. See [`post_xevent_async`].
+pub fn post_xevent(tethysdash_config: &TethysDashConfig, xevent: XEvent) -> Result<(), String> {
+    rt::block_on(post_xevent_async(tethysdash_config, xevent))
 }
 
 /// Notifies an XEvent to a TethysDash instance.
-pub fn post_xevent(tethysdash_config: &TethysDashConfig, xevent: XEvent) -> Result<(), String> {
+pub async fn post_xevent_async(
+    tethysdash_config: &TethysDashConfig,
+    xevent: XEvent,
+) -> Result<(), String> {
     log::debug!(
         "Posting XEvent to TethysDash instance: '{}'",
         tethysdash_config.name
     );
 
-    let json = serde_json::json!(&xevent);
     let endpoint = format!("{}/async/xevent", tethysdash_config.api);
-    let request = create_agent()
+    let response = http::client()
         .post(&endpoint)
-        .header(
-            "Authorization",
-            &format!("Bearer {}", tethysdash_config.api_key),
-        )
-        .send_json(json);
+        .bearer_auth(&tethysdash_config.api_key)
+        .json(&xevent)
+        .send()
+        .await;
 
-    match request {
+    match response.and_then(|r| r.error_for_status()) {
         Ok(_) => Ok(()),
         Err(e) => Err(format!("POST {endpoint}: error: {}", e)),
     }

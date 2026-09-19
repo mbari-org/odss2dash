@@ -8,6 +8,7 @@ mod trackdb;
 use crate::config;
 use crate::dispatched_info::DispatchedInfo;
 use crate::platform_info::PlatformInfo;
+use crate::rt;
 use crate::trackdb_client;
 
 use crate::server::metrics::create_metrics_router;
@@ -25,7 +26,7 @@ pub fn launch_server(
     dispatched_info: Arc<Mutex<DispatchedInfo>>,
     done_sender: Option<mpsc::Sender<()>>,
 ) {
-    match launch(platform_info, dispatched_info, done_sender) {
+    match rt::block_on(launch(platform_info, dispatched_info, done_sender)) {
         Ok(()) => (),
         Err(e) => eprintln!("error launching server: {e}"),
     }
@@ -62,7 +63,6 @@ pub fn launch_server(
 )]
 struct ApiDoc;
 
-#[tokio::main]
 async fn launch(
     platform_info: Arc<Mutex<PlatformInfo>>,
     dispatched_info: Arc<Mutex<DispatchedInfo>>,

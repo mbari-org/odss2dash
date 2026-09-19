@@ -2,6 +2,7 @@ use crate::config;
 use crate::dispatched_info::DispatchedInfo;
 use crate::platform_info::PlatformInfo;
 use crate::publisher::{PostXEventFn, Publisher};
+use crate::rt;
 use crate::tethysdash_client::XEvent;
 use crate::trackdb_client::{self, PlatformRes, Position};
 
@@ -130,7 +131,7 @@ impl Dispatcher {
     }
 
     fn dispatch_platform(&self, reported_map: &mut ReportedMap, platform: &PlatformRes) -> usize {
-        let pos_res = trackdb_client::get_positions_per_config(&platform._id);
+        let pos_res = rt::block_on(trackdb_client::get_positions_per_config(&platform._id));
         if let Some(pos_res) = pos_res {
             self.report_positions(reported_map, platform, pos_res.positions)
         } else {

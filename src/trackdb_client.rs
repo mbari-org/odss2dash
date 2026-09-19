@@ -1,7 +1,7 @@
 use crate::config;
+use crate::http;
 
 use serde::{Deserialize, Serialize};
-use std::time::Duration;
 use utoipa::ToSchema;
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
@@ -30,26 +30,25 @@ struct TrackDataRes {
     pub coordinates: Vec<Vec<f64>>,
 }
 
-fn create_agent() -> ureq::Agent {
-    ureq::Agent::config_builder()
-        .timeout_global(Some(Duration::from_secs(20)))
-        .build()
-        .into()
-}
+/// Maximum size accepted for a response body from ODSS.
+const MAX_RESPONSE_BYTES: usize = 30 * 1024 * 1024;
 
 fn get_url(endpoint: &str) -> String {
     let config = config::get_config();
     format!("{}{endpoint}", config.odss_api)
 }
 
-fn make_get_request<T>(endpoint: &str) -> Option<T>
+async fn make_get_request<T>(endpoint: &str) -> Option<T>
 where
     T: std::fmt::Debug + for<'de> serde::Deserialize<'de>,
 {
-    make_get_request_with_params(endpoint, &Vec::new())
+    make_get_request_with_params(endpoint, &Vec::new()).await
 }
 
-fn make_get_request_with_params<'a, T>(endpoint: &str, params: &Vec<(&'a str, String)>) -> Option<T>
+async fn make_get_request_with_params<'a, T>(
+    endpoint: &str,
+    params: &Vec<(&'a str, String)>,
+) -> Option<T>
 where
     T: std::fmt::Debug + for<'de> serde::Deserialize<'de>,
 {
@@ -71,22 +70,24 @@ where
 
     log::debug!("{}", log_prefix());
     let url = get_url(endpoint);
-    let req = create_agent().get(&url).query_pairs(params.clone());
 
-    let mut response = match req.call() {
-        Ok(res) => res,
+    let response = match http::client().get(&url).query(params).send().await {
+        Ok(response) => match response.error_for_status() {
+            Ok(response) => response,
+            Err(e) => {
+                log::error!("{}: unsuccessful response: {}", log_prefix(), e);
+                return None;
+            }
+        },
         Err(e) => {
             log::error!("{}: request failed: {}", log_prefix(), e);
             return None;
         }
     };
 
-    let res = match response
-        .body_mut()
-        .with_config()
-        .limit(30 * 1024 * 1024)
-        .read_json::<T>()
-    {
+    let body = read_body_limited(response, &log_prefix).await?;
+
+    let res = match serde_json::from_slice::<T>(&body) {
         Ok(parsed) => parsed,
         Err(e) => {
             log::error!("{}: failed to parse response JSON: {}", log_prefix(), e);
@@ -97,14 +98,41 @@ where
     Some(res)
 }
 
-pub fn get_platforms() -> Vec<PlatformRes> {
-    let endpoint = "/platforms";
-    make_get_request(endpoint).unwrap_or_else(Vec::new)
+/// Reads the response body, giving up if it grows beyond [`MAX_RESPONSE_BYTES`].
+async fn read_body_limited(
+    mut response: reqwest::Response,
+    log_prefix: &impl Fn() -> String,
+) -> Option<Vec<u8>> {
+    let mut body: Vec<u8> = Vec::new();
+    loop {
+        match response.chunk().await {
+            Ok(Some(chunk)) => {
+                if body.len() + chunk.len() > MAX_RESPONSE_BYTES {
+                    log::error!(
+                        "{}: response body is larger than the {MAX_RESPONSE_BYTES} byte limit",
+                        log_prefix()
+                    );
+                    return None;
+                }
+                body.extend_from_slice(&chunk);
+            }
+            Ok(None) => return Some(body),
+            Err(e) => {
+                log::error!("{}: failed to read response body: {}", log_prefix(), e);
+                return None;
+            }
+        }
+    }
 }
 
-pub fn get_platform(platform_id: &str) -> Option<PlatformRes> {
+pub async fn get_platforms() -> Vec<PlatformRes> {
+    let endpoint = "/platforms";
+    make_get_request(endpoint).await.unwrap_or_else(Vec::new)
+}
+
+pub async fn get_platform(platform_id: &str) -> Option<PlatformRes> {
     let endpoint = format!("/platforms/{platform_id}");
-    make_get_request(&endpoint)
+    make_get_request(&endpoint).await
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
@@ -124,8 +152,8 @@ pub struct Position {
 }
 
 /// Get the latest positions for the given platform according to the default number of fixes.
-pub fn get_positions_per_config(platform_id: &str) -> Option<PositionsResponse> {
-    get_positions(platform_id, None, None, None)
+pub async fn get_positions_per_config(platform_id: &str) -> Option<PositionsResponse> {
+    get_positions(platform_id, None, None, None).await
 }
 
 /// Note that lastNumberOfFixes has precedence over, and in fact is mutually exclusive with
@@ -134,7 +162,7 @@ pub fn get_positions_per_config(platform_id: &str) -> Option<PositionsResponse> 
 /// request to ODSS if any of startDate or endDate is given. In this case, this function will
 /// truncate to the lastNumberOfFixes limit on the response.
 ///
-pub fn get_positions(
+pub async fn get_positions(
     platform_id: &str,
     last_number_of_fixes: Option<u32>,
     start_date: Option<String>,
@@ -144,7 +172,7 @@ pub fn get_positions(
     let params =
         create_params_for_positions(platform_id, last_number_of_fixes, start_date, end_date);
     let endpoint = "/tracks";
-    if let Some(track_res) = make_get_request_with_params::<TrackRes>(endpoint, &params) {
+    if let Some(track_res) = make_get_request_with_params::<TrackRes>(endpoint, &params).await {
         track_res_to_positions_response(platform_id, last_number_of_fixes, track_res)
     } else {
         None

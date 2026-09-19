@@ -2,6 +2,12 @@
 
 2.5.0
 
+- Use `reqwest` instead of `ureq` for the outgoing requests, so that the ODSS calls
+  no longer block a tokio worker thread. A slow ODSS response used to stall every
+  other request, including the ones served from the platform cache.
+  A single, shared client and runtime are now used process-wide,
+  with connections (and their TLS handshakes) reused across requests.
+- The platform cache lock is no longer held while waiting on ODSS.
 - Add compression.
 - Separate config file for test_parse_config_file
 - Update some dependencies.
