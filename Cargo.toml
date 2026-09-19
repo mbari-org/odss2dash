@@ -1,6 +1,6 @@
 [package]
 name = "odss2dash"
-version = "2.4.9"
+version = "2.5.0"
 authors = [
     "Carlos A. Rueda <carueda@mbari.org>",
 ]
@@ -23,7 +23,7 @@ license = "Apache-2.0"
 edition = "2021"
 
 [dependencies]
-base64 = "0.22"
+base64 = "0.23"
 chrono = "0.4"
 anstyle = "1.0" # for coloring clap help
 clap = { version = "4.3.10", features = ["derive", "unstable-styles"] }

@@ -106,7 +106,7 @@ async fn launch(
     let listener = TcpListener::bind(address.to_string()).await?;
     println!("Server listening on {}", address);
     for (name, path) in paths {
-        println!("  {name:8} : {}{path}", &config.external_url);
+        println!("  {name:8} : {}{path}", config.external_url);
     }
 
     axum::serve(listener, app.into_make_service())
