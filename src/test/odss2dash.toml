@@ -1,0 +1,18 @@
+odssApi = "https://odss.mbari.org/odss"
+port = 3033
+
+externalUrl = "http://localhost:3033"
+
+pollPeriod = "30 seconds"
+
+defaultLastNumberOfFixes = 5
+
+[[tethysdashes]]
+name = "okeanids"
+api = "https://okeanids.mbari.org/TethysDash/api"
+apiKey = "$OKEANIDS_APIKEY"
+
+[[tethysdashes]]
+name = "tethystest"
+api = "http://tethystest.shore.mbari.org/TethysDash/api"
+apiKey = "$TETHYSTEST_APIKEY"

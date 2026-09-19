@@ -143,11 +143,11 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_default_config_file() {
+    fn test_parse_config_file() {
         std::env::set_var("OKEANIDS_APIKEY", "eyFoo");
         std::env::set_var("TETHYSTEST_APIKEY", "eyBaz");
 
-        let config = parse_config_file(CONFIG_FILENAME);
+        let config = parse_config_file("src/test/odss2dash.toml");
 
         assert_eq!(config.odss_api, "https://odss.mbari.org/odss");
         assert_eq!(config.external_url, "http://localhost:3033");
@@ -164,7 +164,7 @@ mod tests {
                 },
                 TethysDashConfig {
                     name: String::from("tethystest"),
-                    api: String::from("http://tethystest.shore.mbari.org:8080/TethysDash/api"),
+                    api: String::from("http://tethystest.shore.mbari.org/TethysDash/api"),
                     api_key: String::from("eyBaz")
                 },
             ]

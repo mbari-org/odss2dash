@@ -2,6 +2,7 @@
 
 2.5.0
 
+- Separate config file for test_parse_config_file
 - Update some dependencies.
 
 - 2.4.9
