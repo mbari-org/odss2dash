@@ -2,6 +2,7 @@
 
 2.5.0
 
+- Add compression.
 - Separate config file for test_parse_config_file
 - Update some dependencies.
 

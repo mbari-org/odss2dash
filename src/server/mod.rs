@@ -17,7 +17,7 @@ use std::net::{Ipv4Addr, SocketAddr};
 use std::sync::{mpsc, Arc, Mutex};
 use tokio::net::TcpListener;
 use tokio::signal;
-use tower_http::cors::CorsLayer;
+use tower_http::{compression::CompressionLayer, cors::CorsLayer};
 use utoipa::OpenApi;
 
 pub fn launch_server(
@@ -89,6 +89,7 @@ async fn launch(
             )
             .merge(get_openapi_router(&mut paths))
             .layer(cors)
+            .layer(CompressionLayer::new())
     };
 
     let metrics_router = {
