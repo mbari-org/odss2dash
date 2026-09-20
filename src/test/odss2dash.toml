@@ -5,10 +5,9 @@ externalUrl = "http://localhost:3033"
 
 pollPeriod = "30 seconds"
 
-defaultLastNumberOfFixes = 5
-
 odssTimeout = "20 seconds"
 defaultPositionsWindow = "2 days"
+dispatchCatchUpWindow = "15 minutes"
 maxNumberOfPoints = 2000
 
 [[tethysdashes]]

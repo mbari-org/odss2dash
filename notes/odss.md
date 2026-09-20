@@ -56,14 +56,15 @@ These apply to whatever was selected, in either of the ways above. With
 
 ## What odss2dash sends
 
+Every request carries a `startDate`, derived when the caller did not give one,
+and `lastNumberOfFixes` is never sent at all, since it would void the dates.
+A limit that goes with a date is applied by odss2dash to the response.
+
 | the request | to ODSS | why |
 |---|---|---|
 | a period (`startDate` given) | `startDate`, `endDate`, `numberOfPoints`, `taperAccuracy=true` | one response covering the period, its recent part intact |
-| the latest positions (`endDate`, no `startDate`) | `startDate` derived from `defaultPositionsWindow`, `endDate` | without a lower bound the answer is the complete track |
-| the same, when that window is empty | `lastNumberOfFixes` only | a platform idle longer than the window still reports its last known positions; the upper bound is applied by odss2dash, since ODSS drops it |
-| the dispatcher's poll (no dates) | `lastNumberOfFixes` | the latest few positions, which is what that selection gives directly |
-
-`lastNumberOfFixes` is never sent together with a date, because the date would be discarded.
+| the latest positions | `startDate` derived from `defaultPositionsWindow`, `endDate` if given | without a lower bound the answer is the complete track, by the slowest query |
+| the dispatcher's poll | `startDate` from the position it last reported, floored at `dispatchCatchUpWindow` | only what it has not dispatched yet, and never a replay of an outage |
 
 Measured through odss2dash for `D_PACKARD`, which reports every minute:
 
@@ -82,6 +83,12 @@ Measured through odss2dash for `D_PACKARD`, which reports every minute:
   on `/tracks` answers `500` with a JSON body reporting a failure, and a request missing
   `platformID` also answers `500`, with a body that reports success. odss2dash therefore
   does not ask ODSS whether a platform exists: it consults its own platform cache.
+- **The unbounded request is the slow one.** Asking for the latest 20 positions with no
+  dates takes 33s for `brizo_ac` and `DAllanB`, and does not answer within 60s for
+  `makai_ac` and `wgSpare`, while a 7 day window for those same platforms answers in 0.08
+  to 0.16s. It is not simply a matter of how many positions a platform has: `W_FLYER`, with
+  3.4M of them, answers the unbounded request in 0.1s. Always sending a lower bound is what
+  keeps odss2dash clear of this.
 - **Reporting fewer points does not make a request cheaper upstream.** A one year request
   takes about 3s to first byte whether it answers with 23.6MB or, with `numberOfPoints`,
   96KB. The thinning saves the transfer and everything downstream of it, not the work ODSS

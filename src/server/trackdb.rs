@@ -1,5 +1,5 @@
 use crate::platform_info::PlatformInfo;
-use crate::trackdb_client::{self, FetchError, PlatformRes, PositionsResponse};
+use crate::trackdb_client::{self, FetchError, PlatformRes, PositionsRequest, PositionsResponse};
 
 use axum::{
     extract::{Path, Query, State},
@@ -155,7 +155,8 @@ pub struct PositionsQuery {
 /// - **The latest positions**, by omitting `startDate`. The most recent
 ///   `lastNumberOfFixes` positions are reported, those at or before `endDate` if it is
 ///   given. Only a configured window back from that moment is considered (7 days by
-///   default); a platform with no positions in it gets its last known ones reported.
+///   default), so a platform that has not reported within it is reported as having no
+///   positions rather than with older ones.
 #[utoipa::path(
     get,
     path = "/trackdb/platforms/{platform_id}/positions",
@@ -183,13 +184,21 @@ async fn get_platform_positions(
 
     let platform_info = get_platform_info(platform_info);
 
-    let positions = trackdb_client::get_positions(
-        &platform_id,
-        query.last_number_of_fixes,
-        query.start_date,
-        query.end_date,
-    )
-    .await;
+    // A startDate given by the caller delimits a period; without one the request is for
+    // the latest positions as of endDate, or as of now.
+    let request = match query.start_date {
+        Some(start_date) => PositionsRequest::Period {
+            limit: query.last_number_of_fixes,
+            start_date,
+            end_date: query.end_date,
+        },
+        None => PositionsRequest::Latest {
+            limit: query.last_number_of_fixes,
+            end_date: query.end_date,
+        },
+    };
+
+    let positions = trackdb_client::get_positions(&platform_id, request).await;
     match positions {
         Ok(pos_res) => {
             let platform_name = platform_info.get_platform(&platform_id).map(|p| p.name);
@@ -233,7 +242,6 @@ mod tests {
     fn create_test_server() -> TestServer {
         set_config(Config {
             odss_api: odss_api(),
-            default_last_number_of_fixes: 2,
             ..Config::default()
         });
 

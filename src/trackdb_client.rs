@@ -1,7 +1,7 @@
 use crate::config;
 use crate::http;
 
-use chrono::{DateTime, FixedOffset, SecondsFormat};
+use chrono::{DateTime, SecondsFormat, Utc};
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::time::Duration;
@@ -35,6 +35,10 @@ struct TrackDataRes {
 
 /// Maximum size accepted for a response body from ODSS.
 const MAX_RESPONSE_BYTES: usize = 30 * 1024 * 1024;
+
+/// How many positions a request for the latest ones gets when it does not say.
+/// The clients all say; this is for the CLI and for an ad hoc request.
+const DEFAULT_LIMIT: u32 = 10;
 
 /// Why a request to ODSS did not produce a usable response.
 #[derive(Debug)]
@@ -200,188 +204,161 @@ pub struct Position {
     pub lon: f64,
 }
 
+/// What a caller wants of a platform's positions. Each variant carries a lower bound, or
+/// says how to derive one: ODSS answers a request without one with the platform's complete
+/// track, and takes tens of seconds over it for some platforms.
+#[derive(Debug, Clone)]
+pub enum PositionsRequest {
+    /// The latest positions as of `end_date`, or as of now when it is not given.
+    /// Only those within `defaultPositionsWindow` of that moment are considered.
+    Latest {
+        limit: Option<u32>,
+        end_date: Option<String>,
+    },
+
+    /// The positions over a period the caller delimited.
+    Period {
+        limit: Option<u32>,
+        start_date: String,
+        end_date: Option<String>,
+    },
+
+    /// The positions since the given moment, for the dispatcher, which knows what it
+    /// reported last. `None` for a platform it has not reported anything for yet.
+    Since { time_ms: Option<u64> },
+}
+
 /// Get the latest positions for the given platform according to the default number of fixes.
 pub async fn get_positions_per_config(platform_id: &str) -> Result<PositionsResponse, FetchError> {
-    get_positions(platform_id, None, None, None).await
+    get_positions(
+        platform_id,
+        PositionsRequest::Latest {
+            limit: None,
+            end_date: None,
+        },
+    )
+    .await
 }
 
 /// Maps the contract documented on the `/trackdb/platforms/{platform_id}/positions`
 /// endpoint onto the ODSS API, which does not offer it directly:
 ///
-/// - `lastNumberOfFixes` is never sent along with the dates, which ODSS would drop.
-/// - A period is sent with `numberOfPoints`, which ODSS applies as a stride over the rows
-///   the query returned, and only when they outnumber it, so a period holding fewer
-///   positions than that comes back whole. It is also sent with `taperAccuracy`, which
-///   leaves the most recent third of the points unstrided. A strided response is not
-///   truncated here: the excess would come off the older end, leaving the period short of
-///   its own start.
-/// - An upper bound alone would leave the request unbounded below, and ODSS would answer
-///   with the platform's complete track, so a lower bound is derived from
-///   `defaultPositionsWindow`. If it captures nothing, the latest positions are requested
-///   instead, which is what ODSS answers when given no dates, and the upper bound is
-///   applied here.
+/// - Every request carries a `startDate`, derived when the caller did not give one.
+///   Without it ODSS answers with the platform's complete track, and it is also its
+///   slowest query: some platforms take 33-60s to report their latest 20 positions that
+///   way, against 0.1s for the same platforms with a date bound.
+/// - `lastNumberOfFixes` is never sent, since ODSS drops the dates when it is given. A
+///   limit that goes with a date is applied here instead.
+/// - A period the caller delimited is sent with `numberOfPoints`, which ODSS applies as a
+///   stride over the rows the query returned, and only when they outnumber it, so a period
+///   holding fewer positions than that comes back whole. It is also sent with
+///   `taperAccuracy`, which leaves the most recent third of the points unstrided. Such a
+///   response is not truncated here: the excess would come off the older end, leaving the
+///   period short of its own start.
 pub async fn get_positions(
     platform_id: &str,
-    last_number_of_fixes: Option<u32>,
-    start_date: Option<String>,
-    end_date: Option<String>,
+    request: PositionsRequest,
 ) -> Result<PositionsResponse, FetchError> {
-    log::debug!("get_positions: platform_id='{}'", platform_id);
-    let config = config::get_config();
+    log::debug!("get_positions: platform_id='{platform_id}' request={request:?}");
+    let odss_request = create_odss_request(config::get_config(), platform_id, &request, Utc::now());
 
-    let res = get_positions_in_window(
-        platform_id,
-        last_number_of_fixes,
-        start_date.clone(),
-        end_date.clone(),
-        config.default_positions_window,
-    )
-    .await?;
-
-    // Only a derived lower bound can leave out positions that the caller would have gotten
-    // otherwise, so only then is a second request warranted:
-    let derived_lower_bound = start_date.is_none() && end_date.is_some();
-    if res.positions.is_empty() && derived_lower_bound {
-        log::info!(
-            "get_positions: no positions for platform_id={platform_id} in the last {}; \
-             requesting the latest positions instead",
-            humantime::format_duration(config.default_positions_window),
-        );
-        let mut res = get_positions_in_window(
-            platform_id,
-            last_number_of_fixes,
-            None,
-            None,
-            config.default_positions_window,
-        )
-        .await?;
-        // ODSS ignores the dates when lastNumberOfFixes is given, so the upper bound
-        // the caller asked for has to be applied here:
-        if let Some(end_ms) = end_date.as_deref().and_then(parse_time_ms) {
-            res.positions.retain(|position| position.time_ms <= end_ms);
-        }
-        return Ok(res);
-    }
-    Ok(res)
-}
-
-async fn get_positions_in_window(
-    platform_id: &str,
-    last_number_of_fixes: Option<u32>,
-    start_date: Option<String>,
-    end_date: Option<String>,
-    window: Duration,
-) -> Result<PositionsResponse, FetchError> {
-    let explicit_period = start_date.is_some();
-    let params = create_params_for_positions(
-        config::get_config(),
-        platform_id,
-        last_number_of_fixes,
-        start_date,
-        end_date,
-        window,
-    );
     let endpoint = "/tracks";
-    let track_res = make_get_request_with_params::<TrackRes>(endpoint, &params).await?;
-    // With an explicit period ODSS has already applied the limit, as a stride over the
-    // whole period; truncating that here would cut the period short at its older end:
-    let truncate_to = if explicit_period {
-        None
-    } else {
-        last_number_of_fixes
-    };
-    track_res_to_positions_response(platform_id, truncate_to, track_res)
+    let track_res =
+        make_get_request_with_params::<TrackRes>(endpoint, &odss_request.params).await?;
+    track_res_to_positions_response(platform_id, odss_request.truncate_to, track_res)
 }
 
-fn create_params_for_positions<'a>(
+/// A request to the ODSS `/tracks` endpoint, and what remains to be applied to its
+/// response here.
+struct OdssRequest<'a> {
+    params: Vec<(&'a str, String)>,
+    /// The limit ODSS could not be asked to apply, if any.
+    truncate_to: Option<u32>,
+}
+
+fn create_odss_request<'a>(
     config: &config::Config,
     platform_id: &str,
-    last_number_of_fixes: Option<u32>,
-    start_date: Option<String>,
-    end_date: Option<String>,
-    window: Duration,
-) -> Vec<(&'a str, String)> {
-    let mut params = Vec::new();
-    params.push(("platformID", platform_id.to_string()));
-    params.push(("returnFormat", "json".to_string()));
-    params.push(("returnSRS", "4326".to_string()));
+    request: &PositionsRequest,
+    now: DateTime<Utc>,
+) -> OdssRequest<'a> {
+    let mut params = vec![
+        ("platformID", platform_id.to_string()),
+        ("returnFormat", "json".to_string()),
+        ("returnSRS", "4326".to_string()),
+    ];
 
-    if start_date.is_some() || end_date.is_some() {
-        // Only a period the caller delimited justifies striding: with a derived lower
-        // bound the caller wants the latest positions, which must stay consecutive.
-        let explicit_period = start_date.is_some();
+    let truncate_to = match request {
+        PositionsRequest::Latest { limit, end_date } => {
+            let upper = end_date.as_deref().and_then(parse_date).unwrap_or(now);
+            params.push((
+                "startDate",
+                format_date(upper - to_chrono(config.default_positions_window)),
+            ));
+            if let Some(end_date) = end_date {
+                params.push(("endDate", end_date.clone()));
+            }
+            // ODSS can only limit by discarding the dates, so the limit is applied here:
+            Some(limit.filter(|limit| *limit > 0).unwrap_or(DEFAULT_LIMIT))
+        }
 
-        let start_date = match (&start_date, &end_date) {
-            // An upper bound on its own leaves the request unbounded below:
-            (None, Some(end_date)) => derive_start_date(end_date, window),
-            _ => start_date,
-        };
-
-        if let Some(start_date) = &start_date {
+        PositionsRequest::Period {
+            limit,
+            start_date,
+            end_date,
+        } => {
             params.push(("startDate", start_date.clone()));
-        }
-        if let Some(end_date) = &end_date {
-            params.push(("endDate", end_date.clone()));
-        }
-
-        if explicit_period {
-            let number_of_points = last_number_of_fixes
-                .filter(|number| *number > 0)
+            if let Some(end_date) = end_date {
+                params.push(("endDate", end_date.clone()));
+            }
+            let number_of_points = limit
+                .filter(|limit| *limit > 0)
                 .unwrap_or(config.max_number_of_points)
                 .min(config.max_number_of_points);
             params.push(("numberOfPoints", number_of_points.to_string()));
-            // Keeps the most recent third of those points unstrided, so that the latest
-            // positions arrive complete however long the period is. ODSS strides nothing
-            // at all when the period holds fewer positions than asked for.
             params.push(("taperAccuracy", "true".to_string()));
+            None
         }
-    } else {
-        let default = config.default_last_number_of_fixes;
-        let last_number_of_fixes = match last_number_of_fixes {
-            Some(number) => {
-                if number > 0 {
-                    number
-                } else {
-                    default
-                }
-            }
-            None => default,
-        };
-        params.push(("lastNumberOfFixes", last_number_of_fixes.to_string()));
+
+        PositionsRequest::Since { time_ms } => {
+            // Never look further back than the catch-up window: after an outage the
+            // dispatcher would otherwise replay every position since it last ran.
+            let floor = now - to_chrono(config.dispatch_catch_up_window);
+            let since = time_ms
+                .and_then(|time_ms| DateTime::from_timestamp_millis(time_ms as i64))
+                .unwrap_or(floor)
+                .clamp(floor, now);
+            // ODSS takes the lower bound as exclusive, so the position at `since`,
+            // already dispatched, is not asked for again.
+            params.push(("startDate", format_date(since)));
+            None
+        }
+    };
+
+    OdssRequest {
+        params,
+        truncate_to,
     }
-    params
 }
 
-fn parse_time_ms(date: &str) -> Option<u64> {
-    match DateTime::<FixedOffset>::parse_from_rfc3339(date) {
-        Ok(date) => u64::try_from(date.timestamp_millis()).ok(),
+fn to_chrono(duration: Duration) -> chrono::Duration {
+    chrono::Duration::from_std(duration).unwrap_or(chrono::Duration::MAX)
+}
+
+fn format_date(date: DateTime<Utc>) -> String {
+    date.to_rfc3339_opts(SecondsFormat::Millis, true)
+}
+
+/// `None` if the date cannot be parsed, so that the request falls back to `now` rather
+/// than going out unbounded.
+fn parse_date(date: &str) -> Option<DateTime<Utc>> {
+    match DateTime::parse_from_rfc3339(date) {
+        Ok(date) => Some(date.with_timezone(&Utc)),
         Err(e) => {
             log::warn!("could not parse date='{date}': {e}");
             None
         }
     }
-}
-
-/// The lower bound `window` before the given upper bound.
-/// `None` if the upper bound cannot be parsed, in which case the request is
-/// left as given and ODSS gets to reject it.
-fn derive_start_date(end_date: &str, window: Duration) -> Option<String> {
-    let end = match DateTime::<FixedOffset>::parse_from_rfc3339(end_date) {
-        Ok(end) => end,
-        Err(e) => {
-            log::warn!("could not parse endDate='{end_date}': {e}");
-            return None;
-        }
-    };
-    let window = match chrono::Duration::from_std(window) {
-        Ok(window) => window,
-        Err(e) => {
-            log::warn!("unusable positions window {window:?}: {e}");
-            return None;
-        }
-    };
-    let start = end - window;
-    Some(start.to_rfc3339_opts(SecondsFormat::Millis, true))
 }
 
 fn track_res_to_positions_response(
@@ -431,34 +408,33 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     const PLATFORM_ID: &str = "669811c71c6e31522c529a7f";
-    const WINDOW: Duration = Duration::from_secs(7 * 24 * 60 * 60);
 
     fn config() -> Config {
         Config {
-            default_last_number_of_fixes: 5,
+            default_positions_window: Duration::from_secs(7 * 24 * 60 * 60),
+            dispatch_catch_up_window: Duration::from_secs(60 * 60),
             max_number_of_points: 2000,
             ..Config::default()
         }
     }
 
-    /// The parameters beyond the ones fixed for every request.
-    fn params(
-        last_number_of_fixes: Option<u32>,
-        start_date: Option<&str>,
-        end_date: Option<&str>,
-    ) -> Vec<(String, String)> {
-        create_params_for_positions(
-            &config(),
-            PLATFORM_ID,
-            last_number_of_fixes,
-            start_date.map(String::from),
-            end_date.map(String::from),
-            WINDOW,
-        )
-        .into_iter()
-        .filter(|(k, _)| !matches!(*k, "platformID" | "returnFormat" | "returnSRS"))
-        .map(|(k, v)| (k.to_string(), v))
-        .collect()
+    fn now() -> DateTime<Utc> {
+        DateTime::parse_from_rfc3339("2026-09-20T18:00:00.000Z")
+            .unwrap()
+            .with_timezone(&Utc)
+    }
+
+    /// The parameters beyond the ones fixed for every request, and what is left to apply
+    /// to the response.
+    fn request(request: PositionsRequest) -> (Vec<(String, String)>, Option<u32>) {
+        let odss_request = create_odss_request(&config(), PLATFORM_ID, &request, now());
+        let params = odss_request
+            .params
+            .into_iter()
+            .filter(|(k, _)| !matches!(*k, "platformID" | "returnFormat" | "returnSRS"))
+            .map(|(k, v)| (k.to_string(), v))
+            .collect();
+        (params, odss_request.truncate_to)
     }
 
     fn pairs(expected: &[(&str, &str)]) -> Vec<(String, String)> {
@@ -469,45 +445,60 @@ mod tests {
     }
 
     #[test]
-    fn no_dates_requests_the_last_number_of_fixes() {
-        assert_eq!(
-            params(Some(3), None, None),
-            pairs(&[("lastNumberOfFixes", "3")])
-        );
+    fn latest_positions_as_of_now_get_a_derived_lower_bound() {
+        let (params, truncate_to) = request(PositionsRequest::Latest {
+            limit: Some(20),
+            end_date: None,
+        });
+        assert_eq!(params, pairs(&[("startDate", "2026-09-13T18:00:00.000Z")]));
+        // ODSS cannot apply the limit without dropping the dates:
+        assert_eq!(truncate_to, Some(20));
     }
 
     #[test]
-    fn no_dates_and_no_limit_uses_the_configured_default() {
+    fn latest_positions_as_of_an_upper_bound_derive_it_from_that_bound() {
+        let (params, truncate_to) = request(PositionsRequest::Latest {
+            limit: None,
+            end_date: Some("2026-09-19T22:00:00.000Z".to_string()),
+        });
         assert_eq!(
-            params(None, None, None),
-            pairs(&[("lastNumberOfFixes", "5")])
-        );
-    }
-
-    /// Only an upper bound: not a period, but a request for the latest positions as of
-    /// that moment, which on its own would make ODSS return the complete track.
-    #[test]
-    fn an_upper_bound_alone_gets_a_derived_lower_bound() {
-        assert_eq!(
-            params(Some(1001), None, Some("2026-09-19T22:00:00.000Z")),
+            params,
             pairs(&[
                 ("startDate", "2026-09-12T22:00:00.000Z"),
                 ("endDate", "2026-09-19T22:00:00.000Z"),
             ])
         );
+        // no limit given, so the default applies:
+        assert_eq!(truncate_to, Some(DEFAULT_LIMIT));
     }
 
-    /// An explicit period, of whatever length and however far in the past: ODSS is asked
-    /// for as many points as the request wants, tapered so that the most recent third of
-    /// them is not strided.
     #[test]
-    fn an_explicit_period_is_passed_with_number_of_points() {
+    fn an_unparsable_upper_bound_falls_back_to_now_rather_than_going_unbounded() {
+        let (params, _) = request(PositionsRequest::Latest {
+            limit: Some(20),
+            end_date: Some("not-a-date".to_string()),
+        });
         assert_eq!(
-            params(
-                Some(1001),
-                Some("2025-09-19T00:00:00.000Z"),
-                Some("2026-09-19T00:00:00.000Z")
-            ),
+            params,
+            pairs(&[
+                ("startDate", "2026-09-13T18:00:00.000Z"),
+                ("endDate", "not-a-date"),
+            ])
+        );
+    }
+
+    /// A period the caller delimited, of whatever length and however far in the past:
+    /// ODSS is asked for as many points as the request wants, tapered so that the most
+    /// recent third of them is not strided.
+    #[test]
+    fn a_period_is_passed_with_number_of_points() {
+        let (params, truncate_to) = request(PositionsRequest::Period {
+            limit: Some(1001),
+            start_date: "2025-09-19T00:00:00.000Z".to_string(),
+            end_date: Some("2026-09-19T00:00:00.000Z".to_string()),
+        });
+        assert_eq!(
+            params,
             pairs(&[
                 ("startDate", "2025-09-19T00:00:00.000Z"),
                 ("endDate", "2026-09-19T00:00:00.000Z"),
@@ -515,31 +506,20 @@ mod tests {
                 ("taperAccuracy", "true"),
             ])
         );
-    }
-
-    /// A short period needs no special case: ODSS strides nothing when the period holds
-    /// fewer positions than asked for.
-    #[test]
-    fn a_short_period_is_passed_the_same_way() {
-        assert_eq!(
-            params(
-                Some(1001),
-                Some("2026-09-18T00:00:00.000Z"),
-                Some("2026-09-19T00:00:00.000Z")
-            ),
-            pairs(&[
-                ("startDate", "2026-09-18T00:00:00.000Z"),
-                ("endDate", "2026-09-19T00:00:00.000Z"),
-                ("numberOfPoints", "1001"),
-                ("taperAccuracy", "true"),
-            ])
-        );
+        // ODSS applied the limit as a stride over the period; truncating it here would
+        // cut the period short at its older end:
+        assert_eq!(truncate_to, None);
     }
 
     #[test]
     fn number_of_points_is_capped() {
+        let (params, _) = request(PositionsRequest::Period {
+            limit: Some(999_999),
+            start_date: "2025-09-19T00:00:00.000Z".to_string(),
+            end_date: None,
+        });
         assert_eq!(
-            params(Some(999_999), Some("2025-09-19T00:00:00.000Z"), None),
+            params,
             pairs(&[
                 ("startDate", "2025-09-19T00:00:00.000Z"),
                 ("numberOfPoints", "2000"),
@@ -549,10 +529,38 @@ mod tests {
     }
 
     #[test]
-    fn an_unparsable_upper_bound_is_left_for_odss_to_reject() {
-        assert_eq!(
-            params(Some(10), None, Some("not-a-date")),
-            pairs(&[("endDate", "not-a-date")])
-        );
+    fn a_dispatch_resumes_from_the_last_position_reported() {
+        // 20 minutes before `now`, so within the catch up window:
+        let (params, truncate_to) = request(PositionsRequest::Since {
+            time_ms: Some(1789926000000),
+        });
+        assert_eq!(params, pairs(&[("startDate", "2026-09-20T17:40:00.000Z")]));
+        // everything since then is new, and is to be dispatched:
+        assert_eq!(truncate_to, None);
+    }
+
+    #[test]
+    fn a_dispatch_does_not_look_further_back_than_the_dispatch_catch_up_window() {
+        // last reported a week ago, as after an outage:
+        let (params, _) = request(PositionsRequest::Since {
+            time_ms: Some(1789322400000),
+        });
+        assert_eq!(params, pairs(&[("startDate", "2026-09-20T17:00:00.000Z")]));
+    }
+
+    #[test]
+    fn a_dispatch_for_an_unreported_platform_starts_at_the_dispatch_catch_up_window() {
+        let (params, _) = request(PositionsRequest::Since { time_ms: None });
+        assert_eq!(params, pairs(&[("startDate", "2026-09-20T17:00:00.000Z")]));
+    }
+
+    /// A timestamp ahead of now, from a clock skew or a bad position, would otherwise
+    /// pin the platform's lower bound in the future and stop it dispatching for good.
+    #[test]
+    fn a_dispatch_never_starts_in_the_future() {
+        let (params, _) = request(PositionsRequest::Since {
+            time_ms: Some(1789928400000),
+        });
+        assert_eq!(params, pairs(&[("startDate", "2026-09-20T18:00:00.000Z")]));
     }
 }

@@ -4,7 +4,7 @@ use crate::platform_info::PlatformInfo;
 use crate::publisher::{PostXEventFn, Publisher};
 use crate::rt;
 use crate::tethysdash_client::XEvent;
-use crate::trackdb_client::{self, PlatformRes, Position};
+use crate::trackdb_client::{self, PlatformRes, Position, PositionsRequest};
 
 use std::collections::BTreeMap;
 use std::fs::File;
@@ -131,7 +131,12 @@ impl Dispatcher {
     }
 
     fn dispatch_platform(&self, reported_map: &mut ReportedMap, platform: &PlatformRes) -> usize {
-        let pos_res = rt::block_on(trackdb_client::get_positions_per_config(&platform._id));
+        // Ask only for what has happened since the last position reported for the
+        // platform, which is also the only lower bound ODSS answers quickly:
+        let request = PositionsRequest::Since {
+            time_ms: reported_map.get(&platform._id).copied(),
+        };
+        let pos_res = rt::block_on(trackdb_client::get_positions(&platform._id, request));
         match pos_res {
             Ok(pos_res) => self.report_positions(reported_map, platform, pos_res.positions),
             Err(e) => {

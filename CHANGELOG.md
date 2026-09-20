@@ -1,5 +1,24 @@
 2026-09
 
+2.5.1
+
+- Every positions request to ODSS now carries a `startDate`. The unbounded form, which asks
+  for the latest positions with no date at all, is the one ODSS is slowest to answer: some
+  platforms take 33 to 60 seconds to report their latest 20 positions that way, against
+  0.1s for the same platforms with a date bound. It was also what the dispatcher used for
+  every platform on every cycle, which is why four of them were timing out every minute.
+    - The dispatcher now asks for the positions since the one it last reported, which it
+      already keeps track of, and never looks further back than the new `dispatchCatchUpWindow`
+      (1 hour), so that returning from an outage does not replay everything meanwhile.
+    - A request for the latest positions with no `endDate` derives its lower bound from
+      `defaultPositionsWindow` as well, rather than being left unbounded.
+    - Removed `defaultLastNumberOfFixes`: the dispatcher no longer needs a number of
+      positions to ask for, and what remained of the setting was the limit applied to a
+      request that does not give one, which is now a constant.
+    - Removed the fallback that asked for the last known positions of a platform with
+      nothing in the window: reporting positions of arbitrary age is not a use case, and it
+      was the only remaining unbounded request.
+
 2.5.0
 
 - Add [`notes/odss.md`](notes/odss.md) to summarize how the ODSS endpoints behave and what

@@ -37,7 +37,6 @@ pub struct Config {
     pub port: u16,
     #[serde(deserialize_with = "humantime_serde::deserialize")]
     pub poll_period: Duration,
-    pub default_last_number_of_fixes: u32,
 
     /// Timeout for the requests to the ODSS API.
     /// Keep it below the timeout of the clients (Dash4 uses 15s), so that a slow
@@ -48,15 +47,26 @@ pub struct Config {
     )]
     pub odss_timeout: Duration,
 
-    /// A positions request with an upper bound but no lower bound is not delimiting a
-    /// period, but asking for the latest positions as of that moment. Left as such it
-    /// would make ODSS return the complete track of the platform (tens of MB for some
-    /// of them), so this window is used to derive the missing lower bound.
+    /// For the requests polled by the clients: how far back a request for the latest
+    /// positions looks. Such a request is not delimiting a period, but asking for the
+    /// latest positions as of a moment, and left without a lower bound it would make ODSS
+    /// return the complete track of the platform (tens of MB for some of them), so this
+    /// window is used to derive one.
     #[serde(
         default = "default_positions_window",
         deserialize_with = "humantime_serde::deserialize"
     )]
     pub default_positions_window: Duration,
+
+    /// For the real time dispatch: how far back the dispatcher may look when it resumes.
+    /// Its requests start from the position it last reported, but never from further back
+    /// than this, so that coming back from an outage does not replay everything that
+    /// happened meanwhile.
+    #[serde(
+        default = "default_dispatch_catch_up_window",
+        deserialize_with = "humantime_serde::deserialize"
+    )]
+    pub dispatch_catch_up_window: Duration,
 
     /// Ceiling for the `numberOfPoints` requested to ODSS when a positions request
     /// delimits an explicit period, that is, for the number of positions ODSS returns
@@ -75,6 +85,10 @@ fn default_positions_window() -> Duration {
     Duration::from_secs(7 * 24 * 60 * 60)
 }
 
+fn default_dispatch_catch_up_window() -> Duration {
+    Duration::from_hours(1)
+}
+
 fn default_max_number_of_points() -> u32 {
     20000
 }
@@ -86,9 +100,9 @@ impl Default for Config {
             external_url: String::new(),
             port: 0,
             poll_period: Duration::from_secs(30),
-            default_last_number_of_fixes: 5,
             odss_timeout: default_odss_timeout(),
             default_positions_window: default_positions_window(),
+            dispatch_catch_up_window: default_dispatch_catch_up_window(),
             max_number_of_points: default_max_number_of_points(),
             tethysdashes: Vec::new(),
         }
@@ -185,13 +199,13 @@ mod tests {
         assert_eq!(config.external_url, "https://okeanids.mbari.org/odss2dash");
         assert_eq!(config.port, 8080);
         assert_eq!(config.poll_period, Duration::from_secs(60));
-        assert_eq!(config.default_last_number_of_fixes, 20);
         // not given in the file, so the defaults apply:
         assert_eq!(config.odss_timeout, Duration::from_secs(10));
         assert_eq!(
             config.default_positions_window,
             Duration::from_secs(7 * 24 * 60 * 60)
         );
+        assert_eq!(config.dispatch_catch_up_window, Duration::from_hours(1));
         assert_eq!(config.max_number_of_points, 20000);
         assert_eq!(
             config.tethysdashes,
@@ -214,11 +228,14 @@ mod tests {
         assert_eq!(config.external_url, "http://localhost:3033");
         assert_eq!(config.port, 3033);
         assert_eq!(config.poll_period, Duration::from_secs(30));
-        assert_eq!(config.default_last_number_of_fixes, 5);
         assert_eq!(config.odss_timeout, Duration::from_secs(20));
         assert_eq!(
             config.default_positions_window,
             Duration::from_secs(2 * 24 * 60 * 60)
+        );
+        assert_eq!(
+            config.dispatch_catch_up_window,
+            Duration::from_secs(15 * 60)
         );
         assert_eq!(config.max_number_of_points, 2000);
         assert_eq!(

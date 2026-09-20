@@ -1745,7 +1745,7 @@ dependencies = [
 
 [[package]]
 name = "odss2dash"
-version = "2.5.0"
+version = "2.5.1"
 dependencies = [
  "anstyle",
  "axum",
@@ -1756,7 +1756,6 @@ dependencies = [
  "clap",
  "dotenv",
  "env_logger",
- "humantime",
  "humantime-serde",
  "hyper",
  "log",
