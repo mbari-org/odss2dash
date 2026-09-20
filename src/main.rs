@@ -80,9 +80,13 @@ enum Commands {
         no_dispatch: bool,
     },
 
-    /// Get health similar to the endpoint
+    /// Get health similar to the endpoint, as this process sees it
     #[command()]
     Health,
+
+    /// Check the running service, as the container healthcheck does
+    #[command()]
+    Healthcheck,
 }
 
 fn main() {
@@ -113,6 +117,9 @@ fn main() {
         }
         Commands::Health => {
             get_health();
+        }
+        Commands::Healthcheck => {
+            healthcheck();
         }
     }
 }
@@ -166,4 +173,19 @@ fn add_dispatched(platform_ids: Vec<String>) {
 fn get_health() {
     let status = get_health_status();
     println!("{}", serde_json::to_string_pretty(&status).unwrap());
+}
+
+/// Requests the health endpoint of the service running on this host.
+/// Unlike [`get_health`], this says whether the service is actually serving.
+fn healthcheck() {
+    // The server binds 0.0.0.0, so this is the address of its own port, and not of a
+    // name that could resolve to an address it is not listening on:
+    let url = format!("http://127.0.0.1:{}/api/health", config::get_config().port);
+    match rt::block_on(http::get_health(&url)) {
+        Ok(body) => println!("{url}: {body}"),
+        Err(e) => {
+            eprintln!("{url}: {e}");
+            std::process::exit(1);
+        }
+    }
 }

@@ -21,6 +21,29 @@ pub fn client() -> &'static reqwest::Client {
     })
 }
 
+/// Timeout for the healthcheck request, comfortably inside the one the container
+/// healthcheck itself is given.
+const HEALTHCHECK_TIMEOUT: Duration = Duration::from_secs(3);
+
+/// The body of a successful response from the given health endpoint, or why there was
+/// none. For the `healthcheck` command; nothing else asks the service about itself.
+pub async fn get_health(url: &str) -> Result<String, String> {
+    let response = client()
+        .get(url)
+        .timeout(HEALTHCHECK_TIMEOUT)
+        .send()
+        .await
+        .map_err(|e| format!("{e}"))?;
+
+    let status = response.status();
+    let body = response.text().await.unwrap_or_default();
+    if status.is_success() {
+        Ok(body)
+    } else {
+        Err(format!("{status}: {body}"))
+    }
+}
+
 /// rustls with the ring provider and the bundled webpki roots, so the service
 /// does not depend on a CA store being present in the (distroless) image.
 fn tls_config() -> rustls::ClientConfig {

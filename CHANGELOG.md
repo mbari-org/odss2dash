@@ -2,6 +2,8 @@
 
 2.5.2
 
+- New `healthcheck` command, which requests the health endpoint of the running service and
+  exits with an error if it does not answer. The container healthcheck now runs this.
 - A dispatch cycle no longer waits for one platform before starting the next:
   it handles `dispatchConcurrency` of them at a time (8 by default), each still reporting
   its own positions in order. The cycle used to be the sum of a hundred or so requests to

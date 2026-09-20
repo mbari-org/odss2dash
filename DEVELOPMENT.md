@@ -29,7 +29,8 @@ Commands:
   add-dispatched  Add platforms to be dispatched
   dispatch        Launch dispatch according to configuration
   serve           Launch service
-  health          Get health similar to the endpoint
+  health          Get health similar to the endpoint, as this process sees it
+  healthcheck     Check the running service, as the container healthcheck does
   help            Print this message or the help of the given subcommand(s)
 
 Options:
