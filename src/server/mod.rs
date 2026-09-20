@@ -11,7 +11,7 @@ use crate::platform_info::PlatformInfo;
 use crate::rt;
 use crate::trackdb_client;
 
-use crate::server::metrics::create_metrics_router;
+use crate::server::metrics::create_metrics;
 use axum::Router;
 use std::error::Error;
 use std::net::{Ipv4Addr, SocketAddr};
@@ -71,6 +71,12 @@ async fn launch(
     // To report the router paths that are set up:
     let mut paths: Vec<(&str, &str)> = vec![];
 
+    let (metrics_layer, metrics_router) = {
+        let metrics_path = "/metrics";
+        paths.push(("Metrics", metrics_path));
+        create_metrics(metrics_path)
+    };
+
     let api_router = {
         let health_router = health::create_health_router();
         let dispatched_router =
@@ -90,12 +96,8 @@ async fn launch(
             .merge(get_openapi_router(&mut paths))
             .layer(cors)
             .layer(CompressionLayer::new())
-    };
-
-    let metrics_router = {
-        let metrics_path = "/metrics";
-        paths.push(("Metrics", metrics_path));
-        create_metrics_router(metrics_path)
+            // Measures the routes above, and not the /metrics route reporting on them:
+            .layer(metrics_layer)
     };
 
     // The complete app router:

@@ -1,5 +1,5 @@
 use axum::{routing, Router};
-use axum_prometheus::PrometheusMetricLayerBuilder;
+use axum_prometheus::{PrometheusMetricLayer, PrometheusMetricLayerBuilder};
 use metrics::{describe_gauge, gauge, Unit};
 use metrics_process::Collector;
 use sysinfo::{CpuRefreshKind, MemoryRefreshKind, RefreshKind, System};
@@ -10,7 +10,10 @@ const TOTAL_MEMORY: &str = "odss2dash_total_memory_bytes";
 const CPUS: &str = "odss2dash_cpus";
 const BUILD_INFO: &str = "odss2dash_build_info";
 
-pub fn create_metrics_router(path: &str) -> Router {
+/// The layer that records a metric per request, and the router that reports what it
+/// recorded. They come as a pair because the layer belongs on the routes to be measured,
+/// which are not these: a router carrying its own layer would only ever measure itself.
+pub fn create_metrics(path: &str) -> (PrometheusMetricLayer<'static>, Router) {
     let (prometheus_layer, metric_handle) = PrometheusMetricLayerBuilder::new()
         .with_prefix(PREFIX)
         .with_default_metrics()
@@ -27,15 +30,15 @@ pub fn create_metrics_router(path: &str) -> Router {
         "Build information about the running binary; value is always 1."
     );
 
-    Router::new()
-        .route(
-            path,
-            routing::get(move || async move {
-                update_metrics(&process_collector);
-                metric_handle.render()
-            }),
-        )
-        .layer(prometheus_layer)
+    let router = Router::new().route(
+        path,
+        routing::get(move || async move {
+            update_metrics(&process_collector);
+            metric_handle.render()
+        }),
+    );
+
+    (prometheus_layer, router)
 }
 
 fn update_metrics(process_collector: &Collector) {

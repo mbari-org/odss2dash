@@ -2,6 +2,10 @@
 
 2.5.2
 
+- Fix API routes metrics: The metrics layer was on the router holding /metrics, so the
+  only endpoint it ever counted was that one: the per-endpoint panels, the latency 
+  histogram and the 5xx rate in the Grafana dashboard had nothing to draw. 
+  The layer now goes on the API routes, and /metrics reports on them instead of on itself.
 - New `healthcheck` command, which requests the health endpoint of the running service and
   exits with an error if it does not answer. The container healthcheck now runs this.
 - A dispatch cycle no longer waits for one platform before starting the next:
