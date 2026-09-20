@@ -1,6 +1,6 @@
 [package]
 name = "odss2dash"
-version = "2.5.1"
+version = "2.5.2"
 authors = [
     "Carlos A. Rueda <carueda@mbari.org>",
 ]
@@ -25,7 +25,7 @@ edition = "2021"
 [dependencies]
 base64 = "0.23"
 chrono = "0.4"
-anstyle = "1.0" # for coloring clap help
+anstyle = "1.0" # for coloring clap help and other cases as convenient
 clap = { version = "4.3.10", features = ["derive", "unstable-styles"] }
 axum = "0.8"
 axum-prometheus = "0.10.0"

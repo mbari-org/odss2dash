@@ -42,8 +42,56 @@ pub async fn post_xevent_async(
         .send()
         .await;
 
-    match response.and_then(|r| r.error_for_status()) {
-        Ok(_) => Ok(()),
+    match response {
+        Ok(response) if response.status().is_success() => Ok(()),
+        Ok(response) => {
+            // The status alone rarely says why the instance refused the XEvent, and its
+            // answer usually does:
+            let status = response.status();
+            let body = response.text().await.unwrap_or_default();
+            Err(format!("POST {endpoint}: {status}{}", summarize(&body)))
+        }
         Err(e) => Err(format!("POST {endpoint}: error: {}", e)),
+    }
+}
+
+/// The response body on one line, short enough to log.
+fn summarize(body: &str) -> String {
+    const LIMIT: usize = 300;
+    let body = body.split_whitespace().collect::<Vec<_>>().join(" ");
+    if body.is_empty() {
+        return "".to_string();
+    }
+    if body.chars().count() > LIMIT {
+        let truncated: String = body.chars().take(LIMIT).collect();
+        format!(": {truncated}...")
+    } else {
+        format!(": {body}")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use pretty_assertions::assert_eq;
+
+    #[test]
+    fn summarize_puts_the_body_on_one_line() {
+        assert_eq!(
+            summarize("{\n  \"error\": \"unknown asset\"\n}"),
+            ": { \"error\": \"unknown asset\" }"
+        );
+    }
+
+    #[test]
+    fn summarize_truncates_a_long_body() {
+        let summary = summarize(&"x".repeat(400));
+        assert_eq!(summary.chars().count(), 2 + 300 + 3);
+        assert!(summary.ends_with("..."));
+    }
+
+    #[test]
+    fn summarize_says_nothing_about_an_empty_body() {
+        assert_eq!(summarize("   "), "");
     }
 }

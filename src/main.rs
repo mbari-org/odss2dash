@@ -7,6 +7,7 @@ mod publisher;
 mod rt;
 mod serve_dispatch;
 mod server;
+mod styles;
 mod tethysdash_client;
 mod trackdb_client;
 use serve_dispatch::{dispatch, serve};
@@ -25,7 +26,7 @@ use clap::{Parser, Subcommand};
     long_about = "odss2dash:
      The central function of this program is a service that relays
      platform positions from the TrackingDB/ODSS to TethysDash.",
-    styles=cli_styles()
+    styles=styles::clap_styles()
 )]
 struct Cli {
     #[command(subcommand)]
@@ -122,35 +123,13 @@ fn check_config() {
 
     println!("\nTethysDash API key expirations:");
     let now = chrono::Utc::now();
-    let soon = now + chrono::TimeDelta::days(30);
+    let styles = styles::Styles::for_stdout();
     for td in &config.tethysdashes {
-        print!("  {:10} : ", td.name);
-        match publisher::jwt_expiration(&td.api_key) {
-            Some(exp) if exp <= now => {
-                println!(
-                    "EXPIRED at {} ({} ago)",
-                    exp.to_rfc3339(),
-                    publisher::format_time_delta(now - exp)
-                );
-            }
-            Some(exp) if exp <= soon => {
-                println!(
-                    "WARNING: expires soon, at {} (in {})",
-                    exp.to_rfc3339(),
-                    publisher::format_time_delta(exp - now)
-                );
-            }
-            Some(exp) => {
-                println!(
-                    "expires at {} (in {})",
-                    exp.to_rfc3339(),
-                    publisher::format_time_delta(exp - now)
-                );
-            }
-            None => {
-                println!("could not determine API key expiration");
-            }
-        }
+        println!(
+            "  - {:10} : {}",
+            td.name,
+            publisher::api_key_expiration(&td.api_key, now, &styles)
+        );
     }
 }
 
@@ -187,19 +166,4 @@ fn add_dispatched(platform_ids: Vec<String>) {
 fn get_health() {
     let status = get_health_status();
     println!("{}", serde_json::to_string_pretty(&status).unwrap());
-}
-
-fn cli_styles() -> clap::builder::Styles {
-    use anstyle::{
-        AnsiColor::{self, *},
-        Color, Style,
-    };
-    fn style(color: AnsiColor) -> Style {
-        Style::new().bold().fg_color(Some(Color::Ansi(color)))
-    }
-    clap::builder::Styles::styled()
-        .usage(style(Yellow).underline())
-        .header(style(Yellow).underline())
-        .literal(style(Green))
-        .placeholder(style(Blue))
 }

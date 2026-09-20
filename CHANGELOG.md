@@ -1,5 +1,10 @@
 2026-09
 
+2.5.2
+
+- Print the API key expirations at startup (rather than logging them).
+- Report the reason a TethysDash instance refused an XEvent.
+
 2.5.1
 
 - Every positions request to ODSS now carries a `startDate`. The unbounded form, which asks
