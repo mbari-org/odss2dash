@@ -132,10 +132,15 @@ impl Dispatcher {
 
     fn dispatch_platform(&self, reported_map: &mut ReportedMap, platform: &PlatformRes) -> usize {
         let pos_res = rt::block_on(trackdb_client::get_positions_per_config(&platform._id));
-        if let Some(pos_res) = pos_res {
-            self.report_positions(reported_map, platform, pos_res.positions)
-        } else {
-            0
+        match pos_res {
+            Ok(pos_res) => self.report_positions(reported_map, platform, pos_res.positions),
+            Err(e) => {
+                log::error!(
+                    "Error getting positions for platform {}: {e}",
+                    platform.name
+                );
+                0
+            }
         }
     }
 

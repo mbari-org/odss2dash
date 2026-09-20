@@ -16,6 +16,21 @@ pollPeriod = "30 seconds"
 ## Default limit for positions request against ODSS API:
 defaultLastNumberOfFixes = 5
 
+## Timeout for the requests to the ODSS API.
+## Keep it below the timeout of the clients (Dash4 uses 15s), so a slow
+## ODSS is reported by this service instead of the client just giving up:
+odssTimeout = "10 seconds"
+
+## A positions request with an endDate but no startDate is not delimiting a period,
+## but asking for the latest positions as of that moment. Left as such it would make
+## ODSS return the complete track of the platform (over 100MB for some ships), so
+## this window is used to derive the missing lower bound:
+defaultPositionsWindow = "7 days"
+
+## Ceiling for the numberOfPoints requested to ODSS for a period, so that not even a
+## short period with a pathological reporting rate can produce an unbounded response:
+maxNumberOfPoints = 20000
+
 ## Target TethysDash instances:
 ## For each:
 ##  `name`: A simple, alphanumeric string

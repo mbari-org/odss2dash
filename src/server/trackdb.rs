@@ -1,5 +1,5 @@
 use crate::platform_info::PlatformInfo;
-use crate::trackdb_client::{self, PlatformRes, PositionsResponse};
+use crate::trackdb_client::{self, FetchError, PlatformRes, PositionsResponse};
 
 use axum::{
     extract::{Path, Query, State},
@@ -56,11 +56,17 @@ async fn get_platforms(
         let platforms_res = trackdb_client::get_platforms().await;
         let platforms = {
             let mut platform_info = platform_info.lock().unwrap();
-            if platforms_res.is_empty() {
-                log::warn!("get_platforms: no platforms found; returning cached platforms");
-            } else {
-                log::info!("get_platforms: {} platforms found", platforms_res.len());
-                platform_info.set_platforms(platforms_res);
+            match platforms_res {
+                Ok(platforms_res) if platforms_res.is_empty() => {
+                    log::warn!("get_platforms: no platforms found; returning cached platforms");
+                }
+                Ok(platforms_res) => {
+                    log::info!("get_platforms: {} platforms found", platforms_res.len());
+                    platform_info.set_platforms(platforms_res);
+                }
+                Err(e) => {
+                    log::warn!("get_platforms: {e}; returning cached platforms");
+                }
             }
             platform_info.get_platforms()
         };
@@ -86,7 +92,10 @@ async fn get_platforms(
         ("platform_id" = String, Path, description = "Platform ID"),
     ),
     responses(
-       (status = 200, description = "Platform information", body = PlatformRes)
+       (status = 200, description = "Platform information", body = PlatformRes),
+       (status = 404, description = "Platform not found"),
+       (status = 502, description = "The Tracking DB could not be reached, or answered unusably"),
+       (status = 504, description = "The Tracking DB did not respond in time"),
     )
 )]
 async fn get_platform(
@@ -95,7 +104,7 @@ async fn get_platform(
 ) -> impl IntoResponse {
     log::info!("get_platform: platform_id={}", platform_id);
     match trackdb_client::get_platform(&platform_id).await {
-        Some(platform_res) => {
+        Ok(Some(platform_res)) => {
             log::debug!(
                 "get_platform: updating cache for platform_id={}",
                 platform_id
@@ -103,8 +112,19 @@ async fn get_platform(
             platform_info.lock().unwrap().update_platform(&platform_res);
             Json(platform_res).into_response()
         }
-        None => (StatusCode::NOT_FOUND, "Platform not found").into_response(),
+        Ok(None) => (StatusCode::NOT_FOUND, "Platform not found").into_response(),
+        Err(e) => fetch_error_response(e),
     }
+}
+
+/// Reports a failed request to ODSS as such, so that it is not confused with
+/// the platform not existing.
+fn fetch_error_response(e: FetchError) -> axum::response::Response {
+    let status = match e {
+        FetchError::Timeout => StatusCode::GATEWAY_TIMEOUT,
+        FetchError::Upstream(_) => StatusCode::BAD_GATEWAY,
+    };
+    (status, format!("Tracking DB request failed: {e}")).into_response()
 }
 
 #[derive(Deserialize, IntoParams, Debug)]
@@ -120,13 +140,22 @@ pub struct PositionsQuery {
 
 /// Get latest platform positions.
 ///
-/// Note that the `lastNumberOfFixes` parameter has precedence over, and in fact is
-/// mutually exclusive with the `startDate` and `endDate` parameters in the ODSS system.
-/// The odss2dash service gives precedence to `startDate` and `endDate` to facilitate
-/// the playback feature in the DashUI. That is, `lastNumberOfFixes` will not be passed
-/// to the request to ODSS if any of `startDate` or `endDate` is given,
-/// in which case, odss2dash will apply the `lastNumberOfFixes` limit on the response
-/// from ODSS prior to responding to this request.
+/// This service accommodates the logic that ODSS currently implements for such queries,
+/// where `lastNumberOfFixes` is mutually exclusive with, and takes precedence over,
+/// `startDate` and `endDate`. Here the dates take precedence instead, so that a period can
+/// be requested at all, and the parameters express two different requests:
+///
+/// - **A period**, by giving `startDate`, and optionally `endDate` (defaulting to now).
+///   About `lastNumberOfFixes` positions covering the whole period are reported. If the
+///   period holds no more than that, they are all of them; otherwise the most recent third
+///   is reported position by position and the rest of the period is strided, that is, one
+///   position every so many. The stride is over the positions, not over time, so the older
+///   part comes out evenly spaced along the track rather than in time, and the response may
+///   hold somewhat more positions than requested.
+/// - **The latest positions**, by omitting `startDate`. The most recent
+///   `lastNumberOfFixes` positions are reported, those at or before `endDate` if it is
+///   given. Only a configured window back from that moment is considered (7 days by
+///   default); a platform with no positions in it gets its last known ones reported.
 #[utoipa::path(
     get,
     path = "/trackdb/platforms/{platform_id}/positions",
@@ -135,7 +164,10 @@ pub struct PositionsQuery {
         PositionsQuery,
     ),
     responses(
-       (status = 200, description = "List of positions", body = PositionsResponse)
+       (status = 200, description = "List of positions", body = PositionsResponse),
+       (status = 404, description = "Platform not found"),
+       (status = 502, description = "The Tracking DB could not be reached, or answered unusably"),
+       (status = 504, description = "The Tracking DB did not respond in time"),
     )
 )]
 async fn get_platform_positions(
@@ -159,7 +191,7 @@ async fn get_platform_positions(
     )
     .await;
     match positions {
-        Some(pos_res) => {
+        Ok(pos_res) => {
             let platform_name = platform_info.get_platform(&platform_id).map(|p| p.name);
             Json(PositionsResponse {
                 platform_name,
@@ -167,7 +199,15 @@ async fn get_platform_positions(
             })
             .into_response()
         }
-        None => (StatusCode::NOT_FOUND, "Platform not found").into_response(),
+        // A timeout says nothing about the platform existing:
+        Err(FetchError::Timeout) => fetch_error_response(FetchError::Timeout),
+        // Otherwise, ODSS reports an unknown platform as a failed request, so the cache
+        // is what distinguishes "no such platform" from "ODSS could not answer now":
+        Err(e) if platform_info.get_platform(&platform_id).is_none() => {
+            log::info!("get_platform_positions: unknown platform_id={platform_id} ({e})");
+            (StatusCode::NOT_FOUND, "Platform not found").into_response()
+        }
+        Err(e) => fetch_error_response(e),
     }
 }
 

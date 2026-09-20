@@ -7,6 +7,10 @@ pollPeriod = "30 seconds"
 
 defaultLastNumberOfFixes = 5
 
+odssTimeout = "20 seconds"
+defaultPositionsWindow = "2 days"
+maxNumberOfPoints = 2000
+
 [[tethysdashes]]
 name = "okeanids"
 api = "https://okeanids.mbari.org/TethysDash/api"

@@ -156,26 +156,27 @@ fn check_config() {
 
 fn get_platforms() {
     log::info!("Getting platforms...");
-    let platforms_res = rt::block_on(trackdb_client::get_platforms());
-    println!("{}", serde_json::to_string_pretty(&platforms_res).unwrap());
+    match rt::block_on(trackdb_client::get_platforms()) {
+        Ok(platforms_res) => println!("{}", serde_json::to_string_pretty(&platforms_res).unwrap()),
+        Err(e) => eprintln!("error getting platforms: {e}"),
+    }
 }
 
 fn get_platform(platform_id: &str) {
     log::info!("Getting platform...");
-    let platform_res = rt::block_on(trackdb_client::get_platform(platform_id));
-    if let Some(platform_res) = platform_res {
-        println!("{}", serde_json::to_string_pretty(&platform_res).unwrap());
-    } else {
-        eprintln!("No platform by id: {platform_id}");
+    match rt::block_on(trackdb_client::get_platform(platform_id)) {
+        Ok(Some(platform_res)) => {
+            println!("{}", serde_json::to_string_pretty(&platform_res).unwrap())
+        }
+        Ok(None) => eprintln!("No platform by id: {platform_id}"),
+        Err(e) => eprintln!("error getting platform {platform_id}: {e}"),
     }
 }
 
 fn get_positions(platform_id: &str) {
-    let pos_res = rt::block_on(trackdb_client::get_positions_per_config(platform_id));
-    if let Some(pos_res) = pos_res {
-        println!("{}", serde_json::to_string_pretty(&pos_res).unwrap());
-    } else {
-        eprintln!("No platform positions by id: {platform_id}");
+    match rt::block_on(trackdb_client::get_positions_per_config(platform_id)) {
+        Ok(pos_res) => println!("{}", serde_json::to_string_pretty(&pos_res).unwrap()),
+        Err(e) => eprintln!("error getting positions for platform {platform_id}: {e}"),
     }
 }
 

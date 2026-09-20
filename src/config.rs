@@ -29,7 +29,7 @@ pub fn get_config() -> &'static Config {
 }
 
 /// Configuration for the odss2dash service. See `odds2dash.toml`.
-#[derive(Deserialize, Serialize, PartialEq, Debug, Clone, Default)]
+#[derive(Deserialize, Serialize, PartialEq, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Config {
     pub odss_api: String,
@@ -38,7 +38,61 @@ pub struct Config {
     #[serde(deserialize_with = "humantime_serde::deserialize")]
     pub poll_period: Duration,
     pub default_last_number_of_fixes: u32,
+
+    /// Timeout for the requests to the ODSS API.
+    /// Keep it below the timeout of the clients (Dash4 uses 15s), so that a slow
+    /// ODSS is reported by this service instead of the client just giving up.
+    #[serde(
+        default = "default_odss_timeout",
+        deserialize_with = "humantime_serde::deserialize"
+    )]
+    pub odss_timeout: Duration,
+
+    /// A positions request with an upper bound but no lower bound is not delimiting a
+    /// period, but asking for the latest positions as of that moment. Left as such it
+    /// would make ODSS return the complete track of the platform (tens of MB for some
+    /// of them), so this window is used to derive the missing lower bound.
+    #[serde(
+        default = "default_positions_window",
+        deserialize_with = "humantime_serde::deserialize"
+    )]
+    pub default_positions_window: Duration,
+
+    /// Ceiling for the `numberOfPoints` requested to ODSS when a positions request
+    /// delimits an explicit period, that is, for the number of positions ODSS returns
+    /// when striding the track over that period.
+    #[serde(default = "default_max_number_of_points")]
+    pub max_number_of_points: u32,
+
     pub tethysdashes: Vec<TethysDashConfig>,
+}
+
+fn default_odss_timeout() -> Duration {
+    Duration::from_secs(10)
+}
+
+fn default_positions_window() -> Duration {
+    Duration::from_secs(7 * 24 * 60 * 60)
+}
+
+fn default_max_number_of_points() -> u32 {
+    20000
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Config {
+            odss_api: String::new(),
+            external_url: String::new(),
+            port: 0,
+            poll_period: Duration::from_secs(30),
+            default_last_number_of_fixes: 5,
+            odss_timeout: default_odss_timeout(),
+            default_positions_window: default_positions_window(),
+            max_number_of_points: default_max_number_of_points(),
+            tethysdashes: Vec::new(),
+        }
+    }
 }
 
 #[derive(Deserialize, Serialize, PartialEq, Debug, Clone, Default)]
@@ -132,6 +186,13 @@ mod tests {
         assert_eq!(config.port, 8080);
         assert_eq!(config.poll_period, Duration::from_secs(60));
         assert_eq!(config.default_last_number_of_fixes, 20);
+        // not given in the file, so the defaults apply:
+        assert_eq!(config.odss_timeout, Duration::from_secs(10));
+        assert_eq!(
+            config.default_positions_window,
+            Duration::from_secs(7 * 24 * 60 * 60)
+        );
+        assert_eq!(config.max_number_of_points, 20000);
         assert_eq!(
             config.tethysdashes,
             vec![TethysDashConfig {
@@ -154,6 +215,12 @@ mod tests {
         assert_eq!(config.port, 3033);
         assert_eq!(config.poll_period, Duration::from_secs(30));
         assert_eq!(config.default_last_number_of_fixes, 5);
+        assert_eq!(config.odss_timeout, Duration::from_secs(20));
+        assert_eq!(
+            config.default_positions_window,
+            Duration::from_secs(2 * 24 * 60 * 60)
+        );
+        assert_eq!(config.max_number_of_points, 2000);
         assert_eq!(
             config.tethysdashes,
             vec![

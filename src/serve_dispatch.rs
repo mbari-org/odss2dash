@@ -36,7 +36,10 @@ pub fn serve(no_dispatch: bool) {
 /// Initializes platform info cache via query to TrackingDB/ODSS.
 fn create_platform_info() -> Arc<Mutex<PlatformInfo>> {
     let platform_info = Arc::new(Mutex::new(PlatformInfo::default()));
-    let platforms_res = rt::block_on(trackdb_client::get_platforms());
+    let platforms_res = rt::block_on(trackdb_client::get_platforms()).unwrap_or_else(|e| {
+        eprintln!("warning: could not get platforms from TrackingDB/ODSS: {e}");
+        Vec::new()
+    });
     if platforms_res.is_empty() {
         eprintln!("warning: no platforms returned from TrackingDB/ODSS");
     } else {

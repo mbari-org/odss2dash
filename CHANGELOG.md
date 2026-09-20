@@ -2,6 +2,29 @@
 
 2.5.0
 
+- Add [`notes/odss.md`](notes/odss.md) to summarize how the ODSS endpoints behave and what
+  odss2dash sends to them, along with the measurements behind the adjustments below.
+  Note that ODSS is being rewritten.
+- Keep the positions requests to ODSS bounded
+    - A request with `endDate` but no `startDate` is not delimiting a period, but asking for
+      the latest positions as of that moment. It made ODSS return the complete track of the
+      platform: 32MB for D_PACKARD, 128MB for W_FLYER, over the 30MB limit and the timeout,
+      so it ended up as a 404. A lower bound is now derived from the new `defaultPositionsWindow`
+      setting, falling back to a request for the latest positions if that window captures nothing.
+    - When the request delimits an explicit period, `numberOfPoints` is now passed to ODSS,
+      which strides the track over the period, returning the first and last position plus
+      every Nth one in between, instead of transferring every position only to truncate the
+      response here.
+      A one-year period of D_PACKARD went from 23.6MB (of which only the newest 1001 positions,
+      some 17 hours, were kept) to 96KB covering the whole year.
+    - A period is also requested with `taperAccuracy`, so that its most recent third of the
+      points comes back position by position and only the older part is strided. A period
+      holding no more positions than requested is not strided at all, ODSS leaving it alone
+      in that case, so no threshold on the length of the period is involved.
+    - New `odssTimeout` setting, defaulting to 10s, that is, below the Dash4 client timeout.
+- A failed request to ODSS is now reported as 504 (timeout) or 502, instead of as a 404
+  indistinguishable from the platform not existing.
+
 - Use `reqwest` instead of `ureq` for the outgoing requests, so that the ODSS calls
   no longer block a tokio worker thread. A slow ODSS response used to stall every
   other request, including the ones served from the platform cache.
