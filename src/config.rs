@@ -47,6 +47,15 @@ pub struct Config {
     )]
     pub odss_timeout: Duration,
 
+    /// Timeout for a POST to a TethysDash instance. An instance that does not answer
+    /// is left alone for the rest of the dispatch cycle, so this is paid at most once
+    /// per instance per cycle.
+    #[serde(
+        default = "default_tethysdash_timeout",
+        deserialize_with = "humantime_serde::deserialize"
+    )]
+    pub tethysdash_timeout: Duration,
+
     /// For the requests polled by the clients: how far back a request for the latest
     /// positions looks. Such a request is not delimiting a period, but asking for the
     /// latest positions as of a moment, and left without a lower bound it would make ODSS
@@ -57,6 +66,13 @@ pub struct Config {
         deserialize_with = "humantime_serde::deserialize"
     )]
     pub default_positions_window: Duration,
+
+    /// How many platforms a dispatch cycle handles at a time. ODSS answers 8 of these
+    /// requests at once about as fast as it answers two, and a cycle is a hundred or so
+    /// of them, so there is no reason to wait for each before starting the next. Lower it
+    /// to be gentler on ODSS.
+    #[serde(default = "default_dispatch_concurrency")]
+    pub dispatch_concurrency: usize,
 
     /// For the real time dispatch: how far back the dispatcher may look when it resumes.
     /// Its requests start from the position it last reported, but never from further back
@@ -81,8 +97,16 @@ fn default_odss_timeout() -> Duration {
     Duration::from_secs(10)
 }
 
+fn default_tethysdash_timeout() -> Duration {
+    Duration::from_secs(10)
+}
+
 fn default_positions_window() -> Duration {
     Duration::from_secs(7 * 24 * 60 * 60)
+}
+
+fn default_dispatch_concurrency() -> usize {
+    8
 }
 
 fn default_dispatch_catch_up_window() -> Duration {
@@ -101,7 +125,9 @@ impl Default for Config {
             port: 0,
             poll_period: Duration::from_secs(30),
             odss_timeout: default_odss_timeout(),
+            tethysdash_timeout: default_tethysdash_timeout(),
             default_positions_window: default_positions_window(),
+            dispatch_concurrency: default_dispatch_concurrency(),
             dispatch_catch_up_window: default_dispatch_catch_up_window(),
             max_number_of_points: default_max_number_of_points(),
             tethysdashes: Vec::new(),
@@ -201,10 +227,12 @@ mod tests {
         assert_eq!(config.poll_period, Duration::from_secs(60));
         // not given in the file, so the defaults apply:
         assert_eq!(config.odss_timeout, Duration::from_secs(10));
+        assert_eq!(config.tethysdash_timeout, Duration::from_secs(10));
         assert_eq!(
             config.default_positions_window,
             Duration::from_secs(7 * 24 * 60 * 60)
         );
+        assert_eq!(config.dispatch_concurrency, 8);
         assert_eq!(config.dispatch_catch_up_window, Duration::from_hours(1));
         assert_eq!(config.max_number_of_points, 20000);
         assert_eq!(
@@ -229,10 +257,12 @@ mod tests {
         assert_eq!(config.port, 3033);
         assert_eq!(config.poll_period, Duration::from_secs(30));
         assert_eq!(config.odss_timeout, Duration::from_secs(20));
+        assert_eq!(config.tethysdash_timeout, Duration::from_secs(5));
         assert_eq!(
             config.default_positions_window,
             Duration::from_secs(2 * 24 * 60 * 60)
         );
+        assert_eq!(config.dispatch_concurrency, 3);
         assert_eq!(
             config.dispatch_catch_up_window,
             Duration::from_secs(15 * 60)

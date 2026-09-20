@@ -3,7 +3,6 @@ use crate::dispatcher::Dispatcher;
 use crate::platform_info::PlatformInfo;
 use crate::rt;
 use crate::server;
-use crate::tethysdash_client::post_xevent;
 use crate::trackdb_client;
 use std::{
     sync::{mpsc, Arc, Mutex},
@@ -17,9 +16,9 @@ pub fn dispatch(once: bool) {
     let dispatched_info = create_dispatched_info();
     let dispatcher = create_dispatcher(platform_info, dispatched_info);
     if once {
-        dispatcher.launch_one_dispatch();
+        rt::block_on(dispatcher.launch_one_dispatch());
     } else {
-        dispatcher.launch_dispatch(None);
+        rt::block_on(dispatcher.launch_dispatch(None));
     }
 }
 
@@ -67,7 +66,7 @@ fn create_dispatcher(
     platform_info: Arc<Mutex<PlatformInfo>>,
     dispatched_info: Arc<Mutex<DispatchedInfo>>,
 ) -> Dispatcher {
-    Dispatcher::new(post_xevent, platform_info, dispatched_info)
+    Dispatcher::new(platform_info, dispatched_info)
 }
 
 fn serve_only() {
@@ -93,7 +92,8 @@ fn serve_and_dispatch() {
     let dispatch_handle = {
         thread::spawn(move || {
             thread::sleep(Duration::from_secs(1));
-            create_dispatcher(platform_info, dispatched_info).launch_dispatch(Some(done_receiver));
+            let dispatcher = create_dispatcher(platform_info, dispatched_info);
+            rt::block_on(dispatcher.launch_dispatch(Some(done_receiver)));
         })
     };
 

@@ -18,11 +18,21 @@ pollPeriod = "30 seconds"
 ## ODSS is reported by this service instead of the client just giving up:
 odssTimeout = "10 seconds"
 
+## Timeout for a POST to a TethysDash instance.
+## An instance that does not answer is left alone for the rest of the
+## dispatch cycle, so this is paid at most once per instance per cycle:
+tethysdashTimeout = "10 seconds"
+
 ## For the requests polled by the clients: how far back a request for the latest positions
 ## looks. Such a request is not delimiting a period, but asking for the latest positions as
 ## of a moment, and left without a lower bound it would make ODSS return the complete track
 ## of the platform (over 100MB for some ships), so this window is used to derive one:
 defaultPositionsWindow = "7 days"
+
+## How many platforms a dispatch cycle handles at a time. ODSS answers 8 of these requests
+## at once about as fast as it answers two, and a cycle is a hundred or so of them. Lower
+## it to be gentler on ODSS:
+dispatchConcurrency = 8
 
 ## For the real time dispatch: how far back the dispatcher may look when it resumes. Its
 ## requests start from the position it last reported, but never from further back than

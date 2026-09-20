@@ -1,6 +1,5 @@
-use crate::config::TethysDashConfig;
+use crate::config::{self, TethysDashConfig};
 use crate::http;
-use crate::rt;
 use crate::trackdb_client::Position;
 
 use serde::Serialize;
@@ -17,15 +16,7 @@ pub struct XEvent {
 }
 
 /// Notifies an XEvent to a TethysDash instance.
-///
-/// Synchronous wrapper for the dispatcher, which runs its own (blocking) loop
-/// on a dedicated thread. See [`post_xevent_async`].
-pub fn post_xevent(tethysdash_config: &TethysDashConfig, xevent: XEvent) -> Result<(), String> {
-    rt::block_on(post_xevent_async(tethysdash_config, xevent))
-}
-
-/// Notifies an XEvent to a TethysDash instance.
-pub async fn post_xevent_async(
+pub async fn post_xevent(
     tethysdash_config: &TethysDashConfig,
     xevent: XEvent,
 ) -> Result<(), String> {
@@ -37,6 +28,7 @@ pub async fn post_xevent_async(
     let endpoint = format!("{}/async/xevent", tethysdash_config.api);
     let response = http::client()
         .post(&endpoint)
+        .timeout(config::get_config().tethysdash_timeout)
         .bearer_auth(&tethysdash_config.api_key)
         .json(&xevent)
         .send()

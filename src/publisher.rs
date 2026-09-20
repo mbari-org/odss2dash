@@ -2,37 +2,49 @@ use crate::config::TethysDashConfig;
 use crate::tethysdash_client::XEvent;
 
 use crate::styles::Styles;
+use crate::tethysdash_client::post_xevent;
 
 use base64::Engine;
 use chrono::{DateTime, TimeDelta, Utc};
-
-pub type PostXEventFn = fn(&TethysDashConfig, XEvent) -> Result<(), String>;
+use std::collections::BTreeSet;
+use std::sync::Mutex;
 
 pub struct Publisher {
-    post_xevent: PostXEventFn,
     tethysdashes: Vec<TethysDashConfig>,
+    /// Instances that have failed during the dispatch cycle under way. An instance that
+    /// is down answers no faster for the second XEvent than it did for the first, and a
+    /// cycle has no reason to wait on it again.
+    failed_this_cycle: Mutex<BTreeSet<String>>,
 }
 
 impl Publisher {
-    pub fn new(post_xevent: PostXEventFn, tethysdashes: Vec<TethysDashConfig>) -> Publisher {
+    pub fn new(tethysdashes: Vec<TethysDashConfig>) -> Publisher {
         report_token_expirations(&tethysdashes);
         Publisher {
-            post_xevent,
             tethysdashes,
+            failed_this_cycle: Mutex::new(BTreeSet::new()),
         }
     }
 
-    pub fn publish_xevent(&self, xevent: XEvent) -> Result<(), String> {
-        let post_xevent = self.post_xevent;
+    /// Lets every instance be tried again. To be called as a dispatch cycle begins.
+    pub fn begin_cycle(&self) {
+        self.failed_this_cycle.lock().unwrap().clear();
+    }
+
+    pub async fn publish_xevent(&self, xevent: XEvent) -> Result<(), String> {
         for tethysdash_config in &self.tethysdashes {
-            match post_xevent(tethysdash_config, xevent.clone()) {
+            let name = &tethysdash_config.name;
+            if self.failed_this_cycle.lock().unwrap().contains(name) {
+                continue;
+            }
+            match post_xevent(tethysdash_config, xevent.clone()).await {
                 Ok(_) => (),
                 Err(e) => {
-                    log::error!(
-                        "Error posting XEvent to TethysDash instance '{}': {}",
-                        tethysdash_config.name,
-                        e
+                    log::error!("Error posting XEvent to TethysDash instance '{name}': {e}");
+                    log::warn!(
+                        "TethysDash instance '{name}' is left alone for the rest of this cycle"
                     );
+                    self.failed_this_cycle.lock().unwrap().insert(name.clone());
                 }
             }
         }

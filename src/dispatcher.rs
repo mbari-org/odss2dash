@@ -1,14 +1,13 @@
 use crate::config;
 use crate::dispatched_info::DispatchedInfo;
 use crate::platform_info::PlatformInfo;
-use crate::publisher::{PostXEventFn, Publisher};
-use crate::rt;
+use crate::publisher::Publisher;
 use crate::tethysdash_client::XEvent;
 use crate::trackdb_client::{self, PlatformRes, Position, PositionsRequest};
 
+use futures_util::stream::{self, StreamExt};
 use std::collections::BTreeMap;
 use std::fs::File;
-use std::io::Write;
 use std::path::Path;
 use std::sync::{mpsc, Arc, Mutex};
 use std::time::Duration;
@@ -20,6 +19,8 @@ type ReportedMap = BTreeMap<PlatformId, LastTsReported>;
 
 pub struct Dispatcher {
     poll_period: Duration,
+    /// How many platforms the cycle handles at a time; at least one.
+    concurrency: usize,
     publisher: Publisher,
     platform_info: Arc<Mutex<PlatformInfo>>,
     dispatched_info: Arc<Mutex<DispatchedInfo>>,
@@ -28,22 +29,30 @@ pub struct Dispatcher {
 /// File that keeps track of last notified position timestamps.
 const REPORTED_PATH: &str = "./reported.json";
 
+/// What a dispatch cycle did about one platform.
+struct PlatformOutcome {
+    platform_id: PlatformId,
+    /// The newest position reported, if any, to resume from next time.
+    last_ts_reported: Option<LastTsReported>,
+    num_dispatched: usize,
+}
+
 impl Dispatcher {
     pub fn new(
-        post_xevent: PostXEventFn,
         platform_info: Arc<Mutex<PlatformInfo>>,
         dispatched_info: Arc<Mutex<DispatchedInfo>>,
     ) -> Self {
         let config = config::get_config();
         Self {
             poll_period: config.poll_period,
-            publisher: Publisher::new(post_xevent, config.tethysdashes.clone()),
+            concurrency: config.dispatch_concurrency.max(1),
+            publisher: Publisher::new(config.tethysdashes.clone()),
             platform_info,
             dispatched_info,
         }
     }
 
-    pub fn launch_dispatch(&self, done_receiver: Option<mpsc::Receiver<()>>) {
+    pub async fn launch_dispatch(&self, done_receiver: Option<mpsc::Receiver<()>>) {
         println!(
             "\nDispatcher is running  (polling every {} secs)",
             self.poll_period.as_secs()
@@ -70,7 +79,7 @@ impl Dispatcher {
             }
 
             if remaining_time_to_dispatch.is_zero() {
-                let num_dispatched = self.dispatch_one();
+                let num_dispatched = self.dispatch_one().await;
                 println!(
                     "Dispatch done. {} positions dispatched.  Will poll again in {} secs",
                     num_dispatched,
@@ -83,17 +92,17 @@ impl Dispatcher {
                 } else {
                     remaining_time_to_dispatch = Duration::from_secs(0);
                 }
-                std::thread::sleep(loop_sleep);
+                tokio::time::sleep(loop_sleep).await;
             }
         }
     }
 
-    pub fn launch_one_dispatch(&self) {
-        let num_dispatched = self.dispatch_one();
+    pub async fn launch_one_dispatch(&self) {
+        let num_dispatched = self.dispatch_one().await;
         println!("Dispatch done. {} positions dispatched.", num_dispatched);
     }
 
-    fn dispatch_one(&self) -> usize {
+    async fn dispatch_one(&self) -> usize {
         let platforms = self.get_dispatched_platforms();
 
         println!(
@@ -101,10 +110,23 @@ impl Dispatcher {
             platforms.len()
         );
 
-        let mut num_dispatched = 0;
         let mut reported_map = load_reported();
-        for platform in &platforms {
-            num_dispatched += self.dispatch_platform(&mut reported_map, platform);
+        self.publisher.begin_cycle();
+
+        let outcomes: Vec<PlatformOutcome> = stream::iter(&platforms)
+            .map(|platform| self.dispatch_platform(&reported_map, platform))
+            .buffer_unordered(self.concurrency)
+            .collect()
+            .await;
+
+        // The map is updated once the platforms are done with, so that each of them reads
+        // the same starting point no matter the order they complete in:
+        let mut num_dispatched = 0;
+        for outcome in outcomes {
+            num_dispatched += outcome.num_dispatched;
+            if let Some(last_ts_reported) = outcome.last_ts_reported {
+                reported_map.insert(outcome.platform_id, last_ts_reported);
+            }
         }
 
         save_reported(&reported_map);
@@ -130,63 +152,77 @@ impl Dispatcher {
             })
     }
 
-    fn dispatch_platform(&self, reported_map: &mut ReportedMap, platform: &PlatformRes) -> usize {
+    async fn dispatch_platform(
+        &self,
+        reported_map: &ReportedMap,
+        platform: &PlatformRes,
+    ) -> PlatformOutcome {
+        let last_ts_reported = reported_map.get(&platform._id).copied();
+
         // Ask only for what has happened since the last position reported for the
         // platform, which is also the only lower bound ODSS answers quickly:
         let request = PositionsRequest::Since {
-            time_ms: reported_map.get(&platform._id).copied(),
+            time_ms: last_ts_reported,
         };
-        let pos_res = rt::block_on(trackdb_client::get_positions(&platform._id, request));
-        match pos_res {
-            Ok(pos_res) => self.report_positions(reported_map, platform, pos_res.positions),
+        match trackdb_client::get_positions(&platform._id, request).await {
+            Ok(pos_res) => {
+                self.report_positions(last_ts_reported, platform, pos_res.positions)
+                    .await
+            }
             Err(e) => {
                 log::error!(
                     "Error getting positions for platform {}: {e}",
                     platform.name
                 );
-                0
+                PlatformOutcome {
+                    platform_id: platform._id.clone(),
+                    last_ts_reported: None,
+                    num_dispatched: 0,
+                }
             }
         }
     }
 
-    fn report_positions(
+    async fn report_positions(
         &self,
-        reported_map: &mut ReportedMap,
+        last_ts_reported: Option<LastTsReported>,
         platform: &PlatformRes,
         positions: Vec<Position>,
-    ) -> usize {
-        let last_ts_reported = reported_map.get(&platform._id).unwrap_or(&0);
+    ) -> PlatformOutcome {
+        let last_ts_reported = last_ts_reported.unwrap_or(0);
 
         let mut new_to_report = positions
             .into_iter()
-            .filter(|p| p.time_ms > *last_ts_reported)
+            .filter(|p| p.time_ms > last_ts_reported)
             .collect::<Vec<Position>>();
 
-        if !new_to_report.is_empty() {
-            new_to_report.sort_by_key(|a| a.time_ms);
-            print!("    {} ({}): new positions ", platform.name, platform._id);
-            flush_stdout();
+        // Oldest first, so that the newest reported is also the last one, and an
+        // interrupted cycle resumes without a gap:
+        new_to_report.sort_by_key(|a| a.time_ms);
 
-            for position in &new_to_report {
-                print!(".");
-                flush_stdout();
-                self.report_position(reported_map, platform, position);
-
-                let new_last_ts_reported = position.time_ms;
-                reported_map.insert(platform._id.clone(), new_last_ts_reported);
-            }
-            println!();
+        let mut newest_reported = None;
+        for position in &new_to_report {
+            self.report_position(platform, position).await;
+            newest_reported = Some(position.time_ms);
         }
-        new_to_report.len()
+
+        if !new_to_report.is_empty() {
+            println!(
+                "    {} ({}): {} new position(s) dispatched",
+                platform.name,
+                platform._id,
+                new_to_report.len()
+            );
+        }
+
+        PlatformOutcome {
+            platform_id: platform._id.clone(),
+            last_ts_reported: newest_reported,
+            num_dispatched: new_to_report.len(),
+        }
     }
 
-    fn report_position(
-        &self,
-        reported_map: &mut ReportedMap,
-        platform: &PlatformRes,
-        position: &Position,
-    ) {
-        //println!("report_position {}", position);
+    async fn report_position(&self, platform: &PlatformRes, position: &Position) {
         let xevent = XEvent {
             asset_id: platform._id.clone(),
             asset_name: platform.name.clone(),
@@ -195,10 +231,7 @@ impl Dispatcher {
             color: platform.color.clone(),
             icon_url: platform.icon_url.clone(),
         };
-        if self.publisher.publish_xevent(xevent).is_ok() {
-            let new_last_ts_reported = position.time_ms;
-            reported_map.insert(platform._id.clone(), new_last_ts_reported);
-        }
+        let _ = self.publisher.publish_xevent(xevent).await;
     }
 }
 
@@ -218,14 +251,4 @@ fn load_reported() -> ReportedMap {
 fn save_reported(reported_map: &ReportedMap) {
     let f = File::create(REPORTED_PATH).unwrap();
     serde_json::to_writer_pretty(f, reported_map).unwrap();
-}
-
-fn flush_stdout() {
-    flush(&mut std::io::stdout());
-}
-
-fn flush<W: Write>(writer: &mut W) {
-    if let Err(e) = writer.flush() {
-        log::warn!("Failed to flush output: {}", e);
-    }
 }

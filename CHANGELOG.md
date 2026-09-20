@@ -2,6 +2,19 @@
 
 2.5.2
 
+- A dispatch cycle no longer waits for one platform before starting the next:
+  it handles `dispatchConcurrency` of them at a time (8 by default), each still reporting
+  its own positions in order. The cycle used to be the sum of a hundred or so requests to
+  ODSS; measured against it, 8 such requests at once are answered in 0.2s, where one at a
+  time takes 0.9s. A platform now reports one line as it dispatches, instead of a dot per
+  position, which several platforms at a time would interleave into nonsense.
+- A TethysDash instance that fails is left alone for the rest of the cycle, and its POSTs
+  have their own timeout (`tethysdashTimeout`, 10s). An unreachable instance used to cost
+  that timeout for every position of every platform, minutes of a cycle; it now costs it
+  at most once per platform in flight when the failure is noticed.
+- The dispatcher is async throughout, which is what the above needed. Posting an XEvent no
+  longer goes through a function pointer and the synchronous wrapper around it: the
+  publisher calls the client directly.
 - Print the API key expirations at startup (rather than logging them).
 - Report the reason a TethysDash instance refused an XEvent.
 
